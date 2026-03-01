@@ -725,7 +725,7 @@ class CompassCard extends HTMLElement {
       ? "Entity unavailable"
       : this._config.show_degrees
         ? degreesLabel
-        : this._config.direction_entity;
+        : "";
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -800,8 +800,7 @@ class CompassCard extends HTMLElement {
         .header {
           display: flex;
           align-items: baseline;
-          justify-content: space-between;
-          gap: 12px;
+          justify-content: flex-start;
           margin-bottom: 12px;
         }
 
@@ -809,16 +808,6 @@ class CompassCard extends HTMLElement {
           font-size: 1rem;
           font-weight: 600;
           letter-spacing: 0.04em;
-          text-transform: uppercase;
-        }
-
-        .entity-chip {
-          padding: 4px 10px;
-          border-radius: 999px;
-          background: var(--compass-chip-bg);
-          color: var(--compass-muted);
-          font-size: 0.73rem;
-          letter-spacing: 0.06em;
           text-transform: uppercase;
         }
 
@@ -1037,18 +1026,14 @@ class CompassCard extends HTMLElement {
           text-transform: uppercase;
         }
 
-        .status {
-          margin-top: 14px;
-          text-align: center;
-          font-size: 0.84rem;
-          color: var(--compass-muted);
+        .subtitle:empty {
+          display: none;
         }
       </style>
 
       <ha-card>
         <div class="header">
           <div class="title">${this._config.title}</div>
-          <div class="entity-chip">${this._config.speed_entity}</div>
         </div>
 
         <div class="compass">
@@ -1093,10 +1078,6 @@ class CompassCard extends HTMLElement {
               <div class="subtitle">${subtitle}</div>
             </div>
           </div>
-        </div>
-
-        <div class="status">
-          ${this._config.direction_entity}${unavailable ? " | data missing" : ""}
         </div>
       </ha-card>
     `;
