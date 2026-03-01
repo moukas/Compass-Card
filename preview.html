@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Compass Card Preview</title>
+    <script src="./compass-card.js"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at top, rgba(71, 173, 194, 0.25), transparent 35%),
+          linear-gradient(160deg, #0d1a28 0%, #071019 100%);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: minmax(280px, 420px) minmax(320px, 420px);
+        gap: 24px;
+        align-items: start;
+        justify-content: center;
+        padding: 32px;
+        color: #ecf5f8;
+      }
+
+      .panel {
+        padding: 22px;
+        border-radius: 28px;
+        background: rgba(10, 20, 31, 0.7);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.05),
+          0 18px 40px rgba(0, 0, 0, 0.24);
+        backdrop-filter: blur(12px);
+      }
+
+      h1 {
+        margin: 0 0 10px;
+        font-size: 1.2rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      p {
+        margin: 0 0 18px;
+        color: rgba(236, 245, 248, 0.7);
+        line-height: 1.45;
+      }
+
+      .controls {
+        display: grid;
+        gap: 14px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-size: 0.92rem;
+        font-weight: 600;
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid rgba(180, 210, 220, 0.18);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #ecf5f8;
+        font: inherit;
+      }
+
+      input[type="range"] {
+        padding: 0;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .preview-wrap {
+        display: grid;
+        place-items: center;
+        min-height: 560px;
+      }
+
+      compass-card {
+        width: min(100%, 380px);
+      }
+
+      ha-card {
+        display: block;
+      }
+
+      .value {
+        color: rgba(236, 245, 248, 0.76);
+        font-size: 0.82rem;
+      }
+
+      @media (max-width: 900px) {
+        body {
+          grid-template-columns: 1fr;
+          padding: 20px;
+        }
+
+        .preview-wrap {
+          min-height: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <section class="panel">
+      <h1>Preview</h1>
+      <p>Simulace vzhledu mimo Home Assistant. Muzeš menit smer, rychlost i textovy vstup smeru.</p>
+      <div class="controls">
+        <label>
+          Nadpis
+          <input id="title" type="text" value="Smer vetru">
+        </label>
+
+        <div class="row">
+          <label>
+            Smer ve stupnich
+            <input id="direction" type="range" min="0" max="359" step="1" value="248">
+            <span id="direction-value" class="value">248°</span>
+          </label>
+          <label>
+            Rychlost
+            <input id="speed" type="range" min="0" max="150" step="0.1" value="23.4">
+            <span id="speed-value" class="value">23.4 km/h</span>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
+            Textovy smer
+            <select id="direction-mode">
+              <option value="degrees" selected>Stupne</option>
+              <option value="text">Text</option>
+            </select>
+          </label>
+          <label>
+            Text smeru
+            <select id="direction-text">
+              <option value="N">N</option>
+              <option value="NE">NE</option>
+              <option value="E">E</option>
+              <option value="SE">SE</option>
+              <option value="S">S</option>
+              <option value="SW" selected>SW</option>
+              <option value="W">W</option>
+              <option value="NW">NW</option>
+              <option value="Severovychod">Severovychod</option>
+              <option value="Jihozapad">Jihozapad</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
+            Jednotka
+            <input id="unit" type="text" value="km/h">
+          </label>
+          <label>
+            Oznaceni smeru
+            <select id="direction-language">
+              <option value="en">English</option>
+              <option value="cs">Cestina</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
+            Zobrazit stupne
+            <select id="show-degrees">
+              <option value="true" selected>Ano</option>
+              <option value="false">Ne</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="preview-wrap">
+      <compass-card id="card"></compass-card>
+    </section>
+
+    <script>
+      const card = document.getElementById("card");
+      const titleInput = document.getElementById("title");
+      const directionInput = document.getElementById("direction");
+      const speedInput = document.getElementById("speed");
+      const unitInput = document.getElementById("unit");
+      const directionLanguageInput = document.getElementById("direction-language");
+      const directionModeInput = document.getElementById("direction-mode");
+      const directionTextInput = document.getElementById("direction-text");
+      const showDegreesInput = document.getElementById("show-degrees");
+      const directionValue = document.getElementById("direction-value");
+      const speedValue = document.getElementById("speed-value");
+
+      const config = {
+        type: "custom:compass-card",
+        title: "Smer vetru",
+        direction_entity: "sensor.preview_wind_direction",
+        speed_entity: "sensor.preview_wind_speed",
+        speed_decimals: 1,
+        degree_decimals: 0,
+        show_degrees: true,
+      };
+
+      card.setConfig(config);
+
+      function renderCard() {
+        const directionDegrees = Number(directionInput.value);
+        const speed = Number(speedInput.value);
+        const useTextDirection = directionModeInput.value === "text";
+        const directionState = useTextDirection ? directionTextInput.value : String(directionDegrees);
+
+        directionValue.textContent = `${directionDegrees}°`;
+        speedValue.textContent = `${speed.toFixed(1)} ${unitInput.value || "km/h"}`;
+
+        card.setConfig({
+          ...config,
+          title: titleInput.value || "Smer vetru",
+          direction_language: directionLanguageInput.value,
+          speed_unit: unitInput.value || "",
+          show_degrees: showDegreesInput.value === "true",
+        });
+
+        card.hass = {
+          states: {
+            "sensor.preview_wind_direction": {
+              entity_id: "sensor.preview_wind_direction",
+              state: directionState,
+              attributes: {
+                friendly_name: "Preview Wind Direction",
+                unit_of_measurement: useTextDirection ? "" : "°",
+              },
+            },
+            "sensor.preview_wind_speed": {
+              entity_id: "sensor.preview_wind_speed",
+              state: speed.toFixed(1),
+              attributes: {
+                friendly_name: "Preview Wind Speed",
+                unit_of_measurement: unitInput.value || "km/h",
+              },
+            },
+          },
+        };
+      }
+
+      [
+        titleInput,
+        directionInput,
+        speedInput,
+        unitInput,
+        directionLanguageInput,
+        directionModeInput,
+        directionTextInput,
+        showDegreesInput,
+      ].forEach((element) => element.addEventListener("input", renderCard));
+
+      renderCard();
+    </script>
+  </body>
+</html>
