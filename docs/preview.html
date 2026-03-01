@@ -195,12 +195,79 @@
 
         <div class="row">
           <label>
+            Smer mesice ve stupnich
+            <input id="moon-direction" type="range" min="0" max="359" step="1" value="112">
+            <span id="moon-direction-value" class="value">112°</span>
+          </label>
+          <label>
+            Vyska mesice
+            <input id="moon-elevation" type="range" min="-20" max="80" step="0.1" value="18">
+            <span id="moon-elevation-value" class="value">18.0°</span>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
             Pohyb slunce
             <select id="sun-rising">
               <option value="true" selected>Vychod</option>
               <option value="false">Zapad</option>
             </select>
           </label>
+          <label>
+            Faze mesice
+            <select id="moon-phase">
+              <option value="new_moon">New moon</option>
+              <option value="waxing_crescent">Waxing crescent</option>
+              <option value="first_quarter">First quarter</option>
+              <option value="waxing_gibbous" selected>Waxing gibbous</option>
+              <option value="full_moon">Full moon</option>
+              <option value="waning_gibbous">Waning gibbous</option>
+              <option value="last_quarter">Last quarter</option>
+              <option value="waning_crescent">Waning crescent</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
+            Zobrazit mesic
+            <select id="show-moon">
+              <option value="true" selected>Ano</option>
+              <option value="false">Ne</option>
+            </select>
+          </label>
+          <label>
+            Zdroj polohy mesice
+            <select id="moon-position-source">
+              <option value="entity" selected>Entita</option>
+              <option value="observer">Vypocet</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
+            Latitude pozorovatele
+            <input id="observer-latitude" type="number" min="-90" max="90" step="0.0001" value="49.1951">
+          </label>
+          <label>
+            Longitude pozorovatele
+            <input id="observer-longitude" type="number" min="-180" max="180" step="0.0001" value="16.6068">
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
+            Observer entity
+            <select id="observer-entity">
+              <option value="zone.home" selected>zone.home</option>
+              <option value="zone.preview_home">zone.preview_home</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row">
           <label>
             Textovy smer
             <select id="direction-mode">
@@ -274,6 +341,14 @@
       const sunDirectionInput = document.getElementById("sun-direction");
       const sunElevationInput = document.getElementById("sun-elevation");
       const sunRisingInput = document.getElementById("sun-rising");
+      const moonDirectionInput = document.getElementById("moon-direction");
+      const moonElevationInput = document.getElementById("moon-elevation");
+      const moonPhaseInput = document.getElementById("moon-phase");
+      const showMoonInput = document.getElementById("show-moon");
+      const moonPositionSourceInput = document.getElementById("moon-position-source");
+      const observerLatitudeInput = document.getElementById("observer-latitude");
+      const observerLongitudeInput = document.getElementById("observer-longitude");
+      const observerEntityInput = document.getElementById("observer-entity");
       const unitInput = document.getElementById("unit");
       const directionLanguageInput = document.getElementById("direction-language");
       const showSunInput = document.getElementById("show-sun");
@@ -284,6 +359,8 @@
       const speedValue = document.getElementById("speed-value");
       const sunDirectionValue = document.getElementById("sun-direction-value");
       const sunElevationValue = document.getElementById("sun-elevation-value");
+      const moonDirectionValue = document.getElementById("moon-direction-value");
+      const moonElevationValue = document.getElementById("moon-elevation-value");
 
       const config = {
         type: "custom:compass-card",
@@ -315,6 +392,7 @@
           "--compass-tick": "rgba(31, 92, 122, 0.32)",
           "--compass-tick-strong": "rgba(23, 72, 98, 0.58)",
           "--compass-cardinal": "rgba(25, 74, 100, 0.8)",
+          "--compass-cardinal-stroke": "rgba(245, 251, 255, 0.92)",
         },
         dark: {
           "--compass-card-bg":
@@ -332,7 +410,8 @@
           "--compass-svg-shadow": "rgba(0, 0, 0, 0.22)",
           "--compass-tick": "rgba(230, 252, 249, 0.28)",
           "--compass-tick-strong": "rgba(230, 252, 249, 0.54)",
-          "--compass-cardinal": "rgba(230, 252, 249, 0.78)",
+          "--compass-cardinal": "rgba(244, 251, 255, 0.96)",
+          "--compass-cardinal-stroke": "rgba(3, 12, 20, 0.96)",
         },
       };
 
@@ -359,6 +438,15 @@
         const sunDegrees = Number(sunDirectionInput.value);
         const sunElevation = Number(sunElevationInput.value);
         const sunRising = sunRisingInput.value === "true";
+        const moonDegrees = Number(moonDirectionInput.value);
+        const moonElevation = Number(moonElevationInput.value);
+        const moonPhase = moonPhaseInput.value;
+        const showMoon = showMoonInput.value === "true";
+        const moonPositionSource = moonPositionSourceInput.value;
+        const moonUsesComputedPosition = moonPositionSource === "observer";
+        const observerLatitude = Number(observerLatitudeInput.value);
+        const observerLongitude = Number(observerLongitudeInput.value);
+        const observerEntity = observerEntityInput.value || "zone.home";
         const useTextDirection = directionModeInput.value === "text";
         const directionState = useTextDirection ? directionTextInput.value : String(directionDegrees);
 
@@ -366,14 +454,22 @@
         speedValue.textContent = `${speed.toFixed(1)} ${unitInput.value || "km/h"}`;
         sunDirectionValue.textContent = `${sunDegrees}°`;
         sunElevationValue.textContent = `${sunElevation.toFixed(1)}°`;
+        moonDirectionValue.textContent = `${moonDegrees}°`;
+        moonElevationValue.textContent = `${moonElevation.toFixed(1)}°`;
 
         card.setConfig({
           ...config,
           title: titleInput.value || "Smer vetru",
           direction_language: directionLanguageInput.value,
           show_sun: showSunInput.value === "true",
+          show_moon: showMoon,
           sun_entity: "sun.sun",
           sun_attribute: "azimuth",
+          moon_phase_entity: "sensor.moon",
+          moon_position_entity: moonUsesComputedPosition ? "" : "sensor.preview_moon_position",
+          moon_azimuth_attribute: "azimuth",
+          moon_elevation_attribute: "elevation",
+          observer_entity: observerEntity,
           speed_unit: unitInput.value || "",
           show_degrees: showDegreesInput.value === "true",
         });
@@ -406,6 +502,44 @@
                 rising: sunRising,
               },
             },
+            "sensor.moon": {
+              entity_id: "sensor.moon",
+              state: moonPhase,
+              attributes: {
+                friendly_name: "Moon",
+              },
+            },
+            "sensor.preview_moon_position": {
+              entity_id: "sensor.preview_moon_position",
+              state: moonDegrees.toFixed(0),
+              attributes: {
+                friendly_name: "Preview Moon Position",
+                azimuth: moonDegrees,
+                elevation: moonElevation,
+              },
+            },
+            "zone.home": {
+              entity_id: "zone.home",
+              state: "zoning",
+              attributes: {
+                friendly_name: "Home",
+                latitude: observerLatitude,
+                longitude: observerLongitude,
+              },
+            },
+            "zone.preview_home": {
+              entity_id: "zone.preview_home",
+              state: "zoning",
+              attributes: {
+                friendly_name: "Preview Home",
+                latitude: observerLatitude,
+                longitude: observerLongitude,
+              },
+            },
+          },
+          config: {
+            latitude: observerLatitude,
+            longitude: observerLongitude,
           },
         };
       }
@@ -418,6 +552,14 @@
         sunDirectionInput,
         sunElevationInput,
         sunRisingInput,
+        moonDirectionInput,
+        moonElevationInput,
+        moonPhaseInput,
+        showMoonInput,
+        moonPositionSourceInput,
+        observerLatitudeInput,
+        observerLongitudeInput,
+        observerEntityInput,
         unitInput,
         directionLanguageInput,
         showSunInput,
