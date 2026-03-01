@@ -160,6 +160,19 @@ function getEntityState(hass, entityId) {
   return hass.states[entityId] ?? null;
 }
 
+function parseNumericValue(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  const numeric = Number.parseFloat(String(value).trim().replace(",", "."));
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 function getEntityNumericValue(hass, entityId, attribute) {
   const entityState = getEntityState(hass, entityId);
   if (!entityState) {
@@ -171,6 +184,26 @@ function getEntityNumericValue(hass, entityId, attribute) {
     : entityState.state;
 
   return parseDirectionDegrees(sourceValue);
+}
+
+function getSunPhase(elevation, rising) {
+  if (!Number.isFinite(elevation)) {
+    return "day";
+  }
+
+  if (elevation < -6) {
+    return "night";
+  }
+
+  if (rising && elevation <= 10) {
+    return "sunrise";
+  }
+
+  if (!rising && elevation <= 10) {
+    return "sunset";
+  }
+
+  return "day";
 }
 
 function getSpeedUnit(entityState, config) {
@@ -647,6 +680,9 @@ class CompassCard extends HTMLElement {
     const directionState = getEntityState(this._hass, this._config.direction_entity);
     const speedState = getEntityState(this._hass, this._config.speed_entity);
     const directionLanguage = normalizeDirectionLanguage(this._config.direction_language);
+    const sunState = this._config.show_sun
+      ? getEntityState(this._hass, this._config.sun_entity)
+      : null;
     const sunDegrees = this._config.show_sun
       ? getEntityNumericValue(
           this._hass,
@@ -654,6 +690,9 @@ class CompassCard extends HTMLElement {
           this._config.sun_attribute
         )
       : null;
+    const sunElevation = parseNumericValue(sunState?.attributes?.elevation);
+    const sunRising = Boolean(sunState?.attributes?.rising);
+    const sunPhase = getSunPhase(sunElevation, sunRising);
     const sunVisible = this._config.show_sun && sunDegrees !== null;
 
     const rawDirection = directionState?.state;
@@ -812,6 +851,31 @@ class CompassCard extends HTMLElement {
           opacity: ${sunVisible ? "1" : "0.28"};
         }
 
+        .sun-marker {
+          transform-origin: 140px 44px;
+        }
+
+        .sun-marker--day {
+          animation: sun-pulse 4.8s ease-in-out infinite;
+        }
+
+        .sun-marker--sunrise {
+          animation:
+            sun-rise-drift 2.8s ease-in-out infinite,
+            sun-flare 1.8s ease-in-out infinite;
+        }
+
+        .sun-marker--sunset {
+          animation:
+            sun-set-drift 3.2s ease-in-out infinite,
+            sun-fade 2.2s ease-in-out infinite;
+        }
+
+        .sun-marker--night {
+          animation: none;
+          opacity: 0.2;
+        }
+
         .sun-ray {
           stroke: #ffd36b;
           stroke-width: 2.2;
@@ -826,6 +890,71 @@ class CompassCard extends HTMLElement {
 
         .sun-glow {
           fill: rgba(255, 209, 92, 0.2);
+        }
+
+        .sun-halo {
+          fill: none;
+          stroke: rgba(255, 211, 107, 0.34);
+          stroke-width: 1.4;
+        }
+
+        .sun-orbit--sunrise .sun-core,
+        .sun-orbit--sunrise .sun-glow,
+        .sun-orbit--sunrise .sun-ray {
+          filter: drop-shadow(0 0 12px rgba(255, 198, 79, 0.55));
+        }
+
+        .sun-orbit--sunset .sun-core,
+        .sun-orbit--sunset .sun-glow,
+        .sun-orbit--sunset .sun-ray {
+          filter: drop-shadow(0 0 10px rgba(255, 135, 94, 0.5));
+        }
+
+        @keyframes sun-pulse {
+          0%, 100% {
+            transform: scale(0.98);
+            opacity: 0.92;
+          }
+          50% {
+            transform: scale(1.08);
+            opacity: 1;
+          }
+        }
+
+        @keyframes sun-rise-drift {
+          0%, 100% {
+            transform: translateY(11px) scale(0.86);
+          }
+          50% {
+            transform: translateY(-1px) scale(1.16);
+          }
+        }
+
+        @keyframes sun-set-drift {
+          0%, 100% {
+            transform: translateY(0) scale(1.08);
+          }
+          50% {
+            transform: translateY(13px) scale(0.8);
+          }
+        }
+
+        @keyframes sun-flare {
+          0%, 100% {
+            opacity: 0.78;
+          }
+          50% {
+            opacity: 1;
+          }
+        }
+
+        @keyframes sun-fade {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.46;
+          }
         }
 
         .center-wrap {
@@ -896,17 +1025,20 @@ class CompassCard extends HTMLElement {
             ${
               this._config.show_sun
                 ? `
-                  <g class="sun-orbit" transform="rotate(${sunDegrees ?? 0} 140 140)">
-                    <circle class="sun-glow" cx="140" cy="44" r="16"></circle>
-                    <line class="sun-ray" x1="140" y1="24" x2="140" y2="14"></line>
-                    <line class="sun-ray" x1="140" y1="74" x2="140" y2="84"></line>
-                    <line class="sun-ray" x1="120" y1="44" x2="110" y2="44"></line>
-                    <line class="sun-ray" x1="160" y1="44" x2="170" y2="44"></line>
-                    <line class="sun-ray" x1="126" y1="30" x2="119" y2="23"></line>
-                    <line class="sun-ray" x1="154" y1="58" x2="161" y2="65"></line>
-                    <line class="sun-ray" x1="126" y1="58" x2="119" y2="65"></line>
-                    <line class="sun-ray" x1="154" y1="30" x2="161" y2="23"></line>
-                    <circle class="sun-core" cx="140" cy="44" r="10"></circle>
+                  <g class="sun-orbit sun-orbit--${sunPhase}" transform="rotate(${sunDegrees ?? 0} 140 140)">
+                    <g class="sun-marker sun-marker--${sunPhase}">
+                      <circle class="sun-halo" cx="140" cy="44" r="21"></circle>
+                      <circle class="sun-glow" cx="140" cy="44" r="16"></circle>
+                      <line class="sun-ray" x1="140" y1="24" x2="140" y2="14"></line>
+                      <line class="sun-ray" x1="140" y1="74" x2="140" y2="84"></line>
+                      <line class="sun-ray" x1="120" y1="44" x2="110" y2="44"></line>
+                      <line class="sun-ray" x1="160" y1="44" x2="170" y2="44"></line>
+                      <line class="sun-ray" x1="126" y1="30" x2="119" y2="23"></line>
+                      <line class="sun-ray" x1="154" y1="58" x2="161" y2="65"></line>
+                      <line class="sun-ray" x1="126" y1="58" x2="119" y2="65"></line>
+                      <line class="sun-ray" x1="154" y1="30" x2="161" y2="23"></line>
+                      <circle class="sun-core" cx="140" cy="44" r="10"></circle>
+                    </g>
                   </g>
                 `
                 : ""

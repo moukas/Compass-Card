@@ -65,4 +65,5 @@ show_degrees: true
 - Pri `direction_language: cs` karta zobrazi ceske zkratky (`S`, `SV`, `V`, `JZ` ...).
 - Pokud je smer textovy, karta se jej pokusi namapovat na uhel, aby se sipka otacela spravne.
 - Pri zapnutem `show_sun` karta vykresli samostatny indikator slunce podle azimutu.
+- Pokud `sun.sun` poskytuje `elevation` a `rising`, karta prida vyraznejsi animaci pro vychod a zapad slunce.
 - Pri `unavailable` nebo `unknown` stavu karta zustane renderovana a zobrazi, ze chybi data.

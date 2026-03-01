@@ -147,6 +147,21 @@
             <span id="sun-direction-value" class="value">170°</span>
           </label>
           <label>
+            Vyska slunce
+            <input id="sun-elevation" type="range" min="-20" max="80" step="0.1" value="4">
+            <span id="sun-elevation-value" class="value">4.0°</span>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
+            Pohyb slunce
+            <select id="sun-rising">
+              <option value="true" selected>Vychod</option>
+              <option value="false">Zapad</option>
+            </select>
+          </label>
+          <label>
             Textovy smer
             <select id="direction-mode">
               <option value="degrees" selected>Stupne</option>
@@ -216,6 +231,8 @@
       const directionInput = document.getElementById("direction");
       const speedInput = document.getElementById("speed");
       const sunDirectionInput = document.getElementById("sun-direction");
+      const sunElevationInput = document.getElementById("sun-elevation");
+      const sunRisingInput = document.getElementById("sun-rising");
       const unitInput = document.getElementById("unit");
       const directionLanguageInput = document.getElementById("direction-language");
       const showSunInput = document.getElementById("show-sun");
@@ -225,6 +242,7 @@
       const directionValue = document.getElementById("direction-value");
       const speedValue = document.getElementById("speed-value");
       const sunDirectionValue = document.getElementById("sun-direction-value");
+      const sunElevationValue = document.getElementById("sun-elevation-value");
 
       const config = {
         type: "custom:compass-card",
@@ -242,12 +260,15 @@
         const directionDegrees = Number(directionInput.value);
         const speed = Number(speedInput.value);
         const sunDegrees = Number(sunDirectionInput.value);
+        const sunElevation = Number(sunElevationInput.value);
+        const sunRising = sunRisingInput.value === "true";
         const useTextDirection = directionModeInput.value === "text";
         const directionState = useTextDirection ? directionTextInput.value : String(directionDegrees);
 
         directionValue.textContent = `${directionDegrees}°`;
         speedValue.textContent = `${speed.toFixed(1)} ${unitInput.value || "km/h"}`;
         sunDirectionValue.textContent = `${sunDegrees}°`;
+        sunElevationValue.textContent = `${sunElevation.toFixed(1)}°`;
 
         card.setConfig({
           ...config,
@@ -280,10 +301,12 @@
             },
             "sun.sun": {
               entity_id: "sun.sun",
-              state: sunDegrees < 180 ? "above_horizon" : "below_horizon",
+              state: sunElevation >= -0.8 ? "above_horizon" : "below_horizon",
               attributes: {
                 friendly_name: "Sun",
                 azimuth: sunDegrees,
+                elevation: sunElevation,
+                rising: sunRising,
               },
             },
           },
@@ -295,6 +318,8 @@
         directionInput,
         speedInput,
         sunDirectionInput,
+        sunElevationInput,
+        sunRisingInput,
         unitInput,
         directionLanguageInput,
         showSunInput,
