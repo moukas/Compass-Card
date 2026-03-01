@@ -15,6 +15,7 @@ Obsahuje i vizualni editor konfigurace pro Lovelace a automaticky motiv pro svet
 - animace vychodu, zapadu a denni faze slunce
 - Lovelace visual editor
 - standalone preview stranka `preview.html`
+- GitHub Pages preview v `docs/index.html`
 - automaticky svetly a tmavy motiv
 
 ## HACS Popis
@@ -48,6 +49,16 @@ type: module
 ```
 
 3. Pouzij kartu v dashboardu.
+
+### Preview a GitHub Pages
+
+Repo obsahuje i standalone preview:
+
+- lokalni zdroj: [`preview.html`](./preview.html)
+- GitHub Pages zdroj: [`docs/index.html`](./docs/index.html)
+- samostatna preview stranka v Pages: [`docs/preview.html`](./docs/preview.html)
+
+Pro GitHub Pages nastav v repozitari source na branch `master` a slozku `/docs`.
 
 ### HACS
 
