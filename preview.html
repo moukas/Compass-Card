@@ -7,11 +7,39 @@
     <script src="./compass-card.js"></script>
     <style>
       :root {
-        color-scheme: dark;
         font-family: "Segoe UI", sans-serif;
-        background:
+        --preview-bg:
           radial-gradient(circle at top, rgba(71, 173, 194, 0.25), transparent 35%),
           linear-gradient(160deg, #0d1a28 0%, #071019 100%);
+        --preview-text: #ecf5f8;
+        --preview-panel-bg: rgba(10, 20, 31, 0.7);
+        --preview-panel-shadow: rgba(0, 0, 0, 0.24);
+        --preview-panel-highlight: rgba(255, 255, 255, 0.05);
+        --preview-input-bg: rgba(255, 255, 255, 0.08);
+        --preview-input-border: rgba(180, 210, 220, 0.18);
+        --preview-muted: rgba(236, 245, 248, 0.7);
+        --preview-value: rgba(236, 245, 248, 0.76);
+        color-scheme: dark;
+        background: var(--preview-bg);
+      }
+
+      :root[data-theme="light"] {
+        --preview-bg:
+          radial-gradient(circle at top, rgba(83, 179, 201, 0.16), transparent 34%),
+          linear-gradient(160deg, #eef6fb 0%, #dfeef6 100%);
+        --preview-text: #163042;
+        --preview-panel-bg: rgba(255, 255, 255, 0.78);
+        --preview-panel-shadow: rgba(76, 112, 135, 0.14);
+        --preview-panel-highlight: rgba(255, 255, 255, 0.72);
+        --preview-input-bg: rgba(23, 64, 88, 0.06);
+        --preview-input-border: rgba(34, 88, 112, 0.18);
+        --preview-muted: rgba(22, 48, 66, 0.66);
+        --preview-value: rgba(22, 48, 66, 0.76);
+        color-scheme: light;
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
       }
 
       * {
@@ -27,16 +55,17 @@
         align-items: start;
         justify-content: center;
         padding: 32px;
-        color: #ecf5f8;
+        color: var(--preview-text);
+        background: var(--preview-bg);
       }
 
       .panel {
         padding: 22px;
         border-radius: 28px;
-        background: rgba(10, 20, 31, 0.7);
+        background: var(--preview-panel-bg);
         box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.05),
-          0 18px 40px rgba(0, 0, 0, 0.24);
+          inset 0 1px 0 var(--preview-panel-highlight),
+          0 18px 40px var(--preview-panel-shadow);
         backdrop-filter: blur(12px);
       }
 
@@ -49,7 +78,7 @@
 
       p {
         margin: 0 0 18px;
-        color: rgba(236, 245, 248, 0.7);
+        color: var(--preview-muted);
         line-height: 1.45;
       }
 
@@ -69,10 +98,10 @@
       select {
         width: 100%;
         padding: 10px 12px;
-        border: 1px solid rgba(180, 210, 220, 0.18);
+        border: 1px solid var(--preview-input-border);
         border-radius: 12px;
-        background: rgba(255, 255, 255, 0.08);
-        color: #ecf5f8;
+        background: var(--preview-input-bg);
+        color: var(--preview-text);
         font: inherit;
       }
 
@@ -101,7 +130,7 @@
       }
 
       .value {
-        color: rgba(236, 245, 248, 0.76);
+        color: var(--preview-value);
         font-size: 0.82rem;
       }
 
@@ -126,6 +155,17 @@
           Nadpis
           <input id="title" type="text" value="Smer vetru">
         </label>
+
+        <div class="row">
+          <label>
+            Rezim preview
+            <select id="theme-mode">
+              <option value="auto" selected>Auto</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+        </div>
 
         <div class="row">
           <label>
@@ -228,6 +268,7 @@
     <script>
       const card = document.getElementById("card");
       const titleInput = document.getElementById("title");
+      const themeModeInput = document.getElementById("theme-mode");
       const directionInput = document.getElementById("direction");
       const speedInput = document.getElementById("speed");
       const sunDirectionInput = document.getElementById("sun-direction");
@@ -255,6 +296,62 @@
       };
 
       card.setConfig(config);
+
+      const themeOverrides = {
+        light: {
+          "--compass-card-bg":
+            "radial-gradient(circle at 50% 38%, rgba(39, 163, 190, 0.16), transparent 42%), linear-gradient(165deg, rgba(243, 250, 255, 0.98) 0%, rgba(221, 237, 247, 0.98) 100%)",
+          "--compass-ring": "rgba(34, 88, 112, 0.12)",
+          "--compass-ring-strong": "rgba(34, 88, 112, 0.24)",
+          "--compass-card-text-color": "#173042",
+          "--compass-card-muted-color": "rgba(23, 48, 66, 0.62)",
+          "--compass-center": "rgba(255, 255, 255, 0.9)",
+          "--compass-chip-bg": "rgba(22, 58, 79, 0.08)",
+          "--compass-shell-border": "rgba(31, 92, 122, 0.1)",
+          "--compass-highlight": "rgba(255, 255, 255, 0.72)",
+          "--compass-shadow": "rgba(65, 104, 128, 0.18)",
+          "--compass-surface-shadow": "rgba(87, 125, 149, 0.18)",
+          "--compass-svg-shadow": "rgba(58, 93, 122, 0.12)",
+          "--compass-tick": "rgba(31, 92, 122, 0.32)",
+          "--compass-tick-strong": "rgba(23, 72, 98, 0.58)",
+          "--compass-cardinal": "rgba(25, 74, 100, 0.8)",
+        },
+        dark: {
+          "--compass-card-bg":
+            "radial-gradient(circle at 50% 42%, rgba(57, 192, 181, 0.26), transparent 42%), linear-gradient(160deg, rgba(18, 30, 44, 0.96) 0%, rgba(8, 18, 29, 0.98) 100%)",
+          "--compass-ring": "rgba(176, 229, 224, 0.18)",
+          "--compass-ring-strong": "rgba(176, 229, 224, 0.34)",
+          "--compass-card-text-color": "#f3f8fb",
+          "--compass-card-muted-color": "rgba(243, 248, 251, 0.64)",
+          "--compass-center": "rgba(11, 28, 39, 0.92)",
+          "--compass-chip-bg": "rgba(255, 255, 255, 0.08)",
+          "--compass-shell-border": "rgba(255, 255, 255, 0.05)",
+          "--compass-highlight": "rgba(255, 255, 255, 0.08)",
+          "--compass-shadow": "rgba(0, 0, 0, 0.22)",
+          "--compass-surface-shadow": "rgba(0, 0, 0, 0.28)",
+          "--compass-svg-shadow": "rgba(0, 0, 0, 0.22)",
+          "--compass-tick": "rgba(230, 252, 249, 0.28)",
+          "--compass-tick-strong": "rgba(230, 252, 249, 0.54)",
+          "--compass-cardinal": "rgba(230, 252, 249, 0.78)",
+        },
+      };
+
+      function applyPreviewTheme() {
+        const selectedTheme = themeModeInput.value;
+        const themeValue = selectedTheme === "auto" ? "" : selectedTheme;
+        document.documentElement.dataset.theme = themeValue;
+        document.body.dataset.theme = themeValue;
+
+        Object.keys(themeOverrides.dark).forEach((property) => {
+          card.style.removeProperty(property);
+        });
+
+        if (selectedTheme === "light" || selectedTheme === "dark") {
+          Object.entries(themeOverrides[selectedTheme]).forEach(([property, value]) => {
+            card.style.setProperty(property, value);
+          });
+        }
+      }
 
       function renderCard() {
         const directionDegrees = Number(directionInput.value);
@@ -315,6 +412,7 @@
 
       [
         titleInput,
+        themeModeInput,
         directionInput,
         speedInput,
         sunDirectionInput,
@@ -326,8 +424,12 @@
         directionModeInput,
         directionTextInput,
         showDegreesInput,
-      ].forEach((element) => element.addEventListener("input", renderCard));
+      ].forEach((element) => element.addEventListener("input", () => {
+        applyPreviewTheme();
+        renderCard();
+      }));
 
+      applyPreviewTheme();
       renderCard();
     </script>
   </body>

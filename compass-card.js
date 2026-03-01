@@ -739,7 +739,40 @@ class CompassCard extends HTMLElement {
           --compass-muted: var(--compass-card-muted-color, rgba(243, 248, 251, 0.64));
           --compass-arrow: #ff8b5e;
           --compass-center: rgba(11, 28, 39, 0.92);
+          --compass-chip-bg: rgba(255, 255, 255, 0.08);
+          --compass-shell-border: rgba(255, 255, 255, 0.05);
+          --compass-highlight: rgba(255, 255, 255, 0.08);
+          --compass-shadow: rgba(0, 0, 0, 0.22);
+          --compass-surface-shadow: rgba(0, 0, 0, 0.28);
+          --compass-svg-shadow: rgba(0, 0, 0, 0.22);
+          --compass-tick: rgba(230, 252, 249, 0.28);
+          --compass-tick-strong: rgba(230, 252, 249, 0.54);
+          --compass-cardinal: rgba(230, 252, 249, 0.78);
+          --compass-cardinal-stroke: rgba(6, 18, 28, 0.78);
           display: block;
+        }
+
+        @media (prefers-color-scheme: light) {
+          :host {
+            --compass-card-bg:
+              radial-gradient(circle at 50% 38%, rgba(39, 163, 190, 0.16), transparent 42%),
+              linear-gradient(165deg, rgba(243, 250, 255, 0.98) 0%, rgba(221, 237, 247, 0.98) 100%);
+            --compass-ring: rgba(34, 88, 112, 0.12);
+            --compass-ring-strong: rgba(34, 88, 112, 0.24);
+            --compass-ink: var(--compass-card-text-color, #173042);
+            --compass-muted: var(--compass-card-muted-color, rgba(23, 48, 66, 0.62));
+            --compass-center: rgba(255, 255, 255, 0.9);
+            --compass-chip-bg: rgba(22, 58, 79, 0.08);
+            --compass-shell-border: rgba(31, 92, 122, 0.1);
+            --compass-highlight: rgba(255, 255, 255, 0.72);
+            --compass-shadow: rgba(65, 104, 128, 0.18);
+            --compass-surface-shadow: rgba(87, 125, 149, 0.18);
+            --compass-svg-shadow: rgba(58, 93, 122, 0.12);
+            --compass-tick: rgba(31, 92, 122, 0.32);
+            --compass-tick-strong: rgba(23, 72, 98, 0.58);
+            --compass-cardinal: rgba(25, 74, 100, 0.8);
+            --compass-cardinal-stroke: rgba(245, 251, 255, 0.92);
+          }
         }
 
         ha-card {
@@ -751,8 +784,8 @@ class CompassCard extends HTMLElement {
           color: var(--compass-ink);
           font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
           box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.08),
-            0 18px 42px rgba(0, 0, 0, 0.22);
+            inset 0 1px 0 var(--compass-highlight),
+            0 18px 42px var(--compass-shadow);
         }
 
         ha-card::before {
@@ -760,7 +793,7 @@ class CompassCard extends HTMLElement {
           position: absolute;
           inset: 14px;
           border-radius: 26px;
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--compass-shell-border);
           pointer-events: none;
         }
 
@@ -782,7 +815,7 @@ class CompassCard extends HTMLElement {
         .entity-chip {
           padding: 4px 10px;
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.08);
+          background: var(--compass-chip-bg);
           color: var(--compass-muted);
           font-size: 0.73rem;
           letter-spacing: 0.06em;
@@ -800,7 +833,7 @@ class CompassCard extends HTMLElement {
           width: 100%;
           height: 100%;
           display: block;
-          filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.22));
+          filter: drop-shadow(0 18px 24px var(--compass-svg-shadow));
         }
 
         .ring {
@@ -814,23 +847,26 @@ class CompassCard extends HTMLElement {
         }
 
         .tick {
-          stroke: rgba(230, 252, 249, 0.28);
+          stroke: var(--compass-tick);
           stroke-width: 2;
           stroke-linecap: round;
         }
 
         .tick-cardinal {
-          stroke: rgba(230, 252, 249, 0.54);
+          stroke: var(--compass-tick-strong);
           stroke-width: 3;
         }
 
         .cardinal-label {
-          fill: rgba(230, 252, 249, 0.78);
-          font-size: 16px;
-          font-weight: 700;
+          fill: var(--compass-cardinal);
+          stroke: var(--compass-cardinal-stroke);
+          stroke-width: 4px;
+          paint-order: stroke fill;
+          font-size: 18px;
+          font-weight: 800;
           text-anchor: middle;
           dominant-baseline: middle;
-          letter-spacing: 0.18em;
+          letter-spacing: 0.08em;
         }
 
         .arrow-glow {
@@ -970,8 +1006,8 @@ class CompassCard extends HTMLElement {
             radial-gradient(circle at 30% 30%, rgba(57, 192, 181, 0.18), transparent 55%),
             var(--compass-center);
           box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.08),
-            0 10px 24px rgba(0, 0, 0, 0.28);
+            inset 0 1px 0 var(--compass-highlight),
+            0 10px 24px var(--compass-surface-shadow);
           text-align: center;
           padding: 14px;
           backdrop-filter: blur(6px);
