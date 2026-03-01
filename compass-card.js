@@ -1097,6 +1097,7 @@ if (!window.customCards.some((card) => card.type === "compass-card")) {
   window.customCards.push({
     type: "compass-card",
     name: "Compass Card",
-    description: "A graphical compass card for Home Assistant wind direction and speed.",
+    description:
+      "A graphical Home Assistant compass card for wind direction, wind speed, and optional sun position.",
   });
 }

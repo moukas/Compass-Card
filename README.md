@@ -1,15 +1,39 @@
 # Compass Card
 
-Graficka custom karta pro Home Assistant, ktera zobrazuje:
-
-- sipku se smerem vetru
-- zkratku smeru uprostred kompasu
-- rychlost vetru uprostred kompasu
+Compass Card is a Home Assistant Lovelace card that visualizes wind direction and wind speed on a graphical compass, with optional sun position, Czech direction labels, a built-in visual editor, and light/dark theme support.
 
 Karta je napsana jako cisty JavaScript bez buildu. Do Home Assistantu ji staci nahrat jako soubor `compass-card.js` a pridat jako Lovelace resource.
 
-Obsahuje i vizualni editor konfigurace pro Lovelace.
-Karta ma automaticky motiv pro svetly i tmavy rezim podle aktivniho color scheme.
+Obsahuje i vizualni editor konfigurace pro Lovelace a automaticky motiv pro svetly i tmavy rezim podle aktivniho color scheme.
+
+## Funkce
+
+- graficky kompas se sipkou smeru vetru
+- zkratka smeru a rychlost vetru uprostred karty
+- ceske i anglicke znaceni smeru vetru
+- volitelna poloha slunce podle `sun.sun.attributes.azimuth`
+- animace vychodu, zapadu a denni faze slunce
+- Lovelace visual editor
+- standalone preview stranka `preview.html`
+- automaticky svetly a tmavy motiv
+
+## HACS Popis
+
+Doporuceny kratky popis pro GitHub repository description a HACS listing:
+
+> A Home Assistant Lovelace compass card for wind direction, wind speed, and optional sun position.
+
+GitHub topics doporucene pro verejny HACS repo:
+
+- `home-assistant`
+- `hacs`
+- `lovelace`
+- `lovelace-card`
+- `custom-card`
+- `weather`
+- `wind`
+
+Presnejsi metadata pro remote repozitar jsou v [`REPOSITORY_METADATA.md`](./REPOSITORY_METADATA.md).
 
 ## Instalace
 
@@ -31,7 +55,7 @@ Repo obsahuje `hacs.json`, takze jej lze pridat jako HACS custom repository typu
 
 1. Otevri `HACS`.
 2. Vpravo nahore otevri menu `...` a zvol `Custom repositories`.
-3. Pridej URL tohoto repozitare.
+3. Pridej URL tohoto repozitare, napr. `https://github.com/moukas/Compass-Card`.
 4. Jako typ zvol `Dashboard`.
 5. Otevri repozitar v HACS a klikni na `Download`.
 6. Pokud HACS neprida resource automaticky, pridej jej rucne.
@@ -48,6 +72,7 @@ Upozorneni:
 - HACS podle oficialni dokumentace uklada dashboard prvky do `www/community/` a servíruje je pres `/hacsfiles/`.
 - Pokud repozitar lokalne upravis po HACS instalaci, muze byt potreba obnovit browser cache.
 - Pokud HACS vytvori i `.gz` variantu souboru, `/hacsfiles/` ji muze servirovat automaticky.
+- `hide_default_branch: true` v `hacs.json` zajisti, ze HACS bude preferovat vydane verze z GitHub Releases misto default branch.
 
 Oficialni HACS dokumentace:
 
@@ -61,6 +86,7 @@ Repo je pripraveny na verzovani pres GitHub Releases:
 
 - `.github/workflows/validate.yaml` spousti oficialni HACS validaci.
 - `.github/workflows/release.yaml` vytvori GitHub Release pri pushi tagu ve tvaru `v*.*.*`.
+- `hacs.json` ma zapnute `hide_default_branch`, takze nove verze maji jit ven pres release tagy.
 
 Doporuceny release flow:
 
@@ -68,6 +94,21 @@ Doporuceny release flow:
 2. Pushni git tag na GitHub.
 3. GitHub Actions vytvori Release.
 4. HACS pak nabidne novou verzi jako update.
+
+Priklad:
+
+```bash
+git tag v0.1.0
+git push origin master
+git push origin v0.1.0
+git push remote master
+git push remote v0.1.0
+```
+
+Poznamka:
+
+- HACS zobrazuje kratky popis z GitHub repository description, ne z `hacs.json`.
+- Po prvnim pushi na GitHub je vhodne nastavit description a topics podle [`REPOSITORY_METADATA.md`](./REPOSITORY_METADATA.md).
 
 Oficialni zdroje k verzi a validaci:
 
