@@ -2,136 +2,72 @@
 
 Compass Card is a Home Assistant Lovelace card that visualizes wind direction and wind speed on a graphical compass, with optional sun position, Czech direction labels, a built-in visual editor, and light/dark theme support.
 
-Karta je napsana jako cisty JavaScript bez buildu. Do Home Assistantu ji staci nahrat jako soubor `compass-card.js` a pridat jako Lovelace resource.
+## Features
 
-Obsahuje i vizualni editor konfigurace pro Lovelace a automaticky motiv pro svetly i tmavy rezim podle aktivniho color scheme.
-
-## Funkce
-
-- graficky kompas se sipkou smeru vetru
-- zkratka smeru a rychlost vetru uprostred karty
-- ceske i anglicke znaceni smeru vetru
-- volitelna poloha slunce podle `sun.sun.attributes.azimuth`
-- animace vychodu, zapadu a denni faze slunce
+- graphical compass with a wind direction arrow
+- direction label and wind speed in the center of the card
+- Czech and English direction labels
+- optional sun position based on `sun.sun.attributes.azimuth`
+- sunrise, sunset, and daytime sun animations
 - Lovelace visual editor
-- standalone preview stranka `preview.html`
-- GitHub Pages preview v `docs/index.html`
-- automaticky svetly a tmavy motiv
+- automatic light and dark theme support
 
-## HACS Popis
+## Installation
 
-Doporuceny kratky popis pro GitHub repository description a HACS listing:
+### HACS
 
-> A Home Assistant Lovelace compass card for wind direction, wind speed, and optional sun position.
+1. Open `HACS`.
+2. Open the `...` menu in the top-right corner and choose `Custom repositories`.
+3. Add `https://github.com/moukas/Compass-Card`.
+4. Select `Dashboard` as the repository type.
+5. Open the repository in HACS and click `Download`.
+6. If HACS does not add the resource automatically, add it manually.
 
-GitHub topics doporucene pro verejny HACS repo:
+If needed, add the resource manually:
 
-- `home-assistant`
-- `hacs`
-- `lovelace`
-- `lovelace-card`
-- `custom-card`
-- `weather`
-- `wind`
+```yaml
+url: /hacsfiles/Compass-Card/compass-card.js
+type: module
+```
 
-Presnejsi metadata pro remote repozitar jsou v [`REPOSITORY_METADATA.md`](./REPOSITORY_METADATA.md).
+### Manual
 
-## Instalace
-
-### Manualne
-
-1. Zkopiruj [`compass-card.js`](./compass-card.js) do `config/www/compass-card.js`.
-2. V Home Assistantu pridej dashboard resource:
+1. Copy [`compass-card.js`](./compass-card.js) to `config/www/compass-card.js`.
+2. Add a dashboard resource in Home Assistant:
 
 ```yaml
 url: /local/compass-card.js
 type: module
 ```
 
-3. Pouzij kartu v dashboardu.
+3. Use the card in your dashboard.
 
-### Preview a GitHub Pages
+## Preview
 
-Repo obsahuje i standalone preview:
+The repository includes a standalone preview:
 
-- lokalni zdroj: [`preview.html`](./preview.html)
-- GitHub Pages zdroj: [`docs/index.html`](./docs/index.html)
-- samostatna preview stranka v Pages: [`docs/preview.html`](./docs/preview.html)
+- local preview: [`preview.html`](./preview.html)
+- GitHub Pages preview: [`docs/index.html`](./docs/index.html)
 
-Pro GitHub Pages nastav v repozitari source na branch `master` a slozku `/docs`.
+## Screenshots
 
-### HACS
+### Home Assistant
 
-Repo obsahuje `hacs.json`, takze jej lze pridat jako HACS custom repository typu `Dashboard`.
+![Compass Card in Home Assistant](./docs/images/compass-card-ha.png)
 
-1. Otevri `HACS`.
-2. Vpravo nahore otevri menu `...` a zvol `Custom repositories`.
-3. Pridej URL tohoto repozitare, napr. `https://github.com/moukas/Compass-Card`.
-4. Jako typ zvol `Dashboard`.
-5. Otevri repozitar v HACS a klikni na `Download`.
-6. Pokud HACS neprida resource automaticky, pridej jej rucne.
+### Preview Light
 
-Typicka HACS resource cesta vypada takto:
+![Compass Card preview in light mode](./docs/images/compass-card-preview-light.png)
 
-```yaml
-url: /hacsfiles/<repo-name>/compass-card.js
-type: module
-```
+### Preview Dark
 
-Upozorneni:
+![Compass Card preview in dark mode](./docs/images/compass-card-preview-dark.png)
 
-- HACS podle oficialni dokumentace uklada dashboard prvky do `www/community/` a servíruje je pres `/hacsfiles/`.
-- Pokud repozitar lokalne upravis po HACS instalaci, muze byt potreba obnovit browser cache.
-- Pokud HACS vytvori i `.gz` variantu souboru, `/hacsfiles/` ji muze servirovat automaticky.
-- `hide_default_branch: true` v `hacs.json` zajisti, ze HACS bude preferovat vydane verze z GitHub Releases misto default branch.
-
-Oficialni HACS dokumentace:
-
-- https://www.hacs.xyz/docs/faq/custom_repositories/
-- https://hacs.xyz/docs/use/repositories/type/dashboard/
-- https://www.hacs.xyz/docs/use/repositories/dashboard/
-
-### Verzovani pro HACS
-
-Repo je pripraveny na verzovani pres GitHub Releases:
-
-- `.github/workflows/validate.yaml` spousti oficialni HACS validaci.
-- `.github/workflows/release.yaml` vytvori GitHub Release pri pushi tagu ve tvaru `v*.*.*`.
-- `hacs.json` ma zapnute `hide_default_branch`, takze nove verze maji jit ven pres release tagy.
-
-Doporuceny release flow:
-
-1. Zvys verzi v releasovacim procesu podle semantic versioning, napr. `v1.0.0`.
-2. Pushni git tag na GitHub.
-3. GitHub Actions vytvori Release.
-4. HACS pak nabidne novou verzi jako update.
-
-Priklad:
-
-```bash
-git tag v0.1.0
-git push origin master
-git push origin v0.1.0
-git push remote master
-git push remote v0.1.0
-```
-
-Poznamka:
-
-- HACS zobrazuje kratky popis z GitHub repository description, ne z `hacs.json`.
-- Po prvnim pushi na GitHub je vhodne nastavit description a topics podle [`REPOSITORY_METADATA.md`](./REPOSITORY_METADATA.md).
-
-Oficialni zdroje k verzi a validaci:
-
-- https://hacs.xyz/docs/publish/action/
-- https://www.hacs.xyz/docs/publish/include/
-- https://www.hacs.xyz/docs/use/entities/update/
-
-## Konfigurace
+## Example Configuration
 
 ```yaml
 type: custom:compass-card
-title: Vitr
+title: Wind
 direction_entity: sensor.wind_direction
 speed_entity: sensor.wind_speed
 direction_language: cs
@@ -144,35 +80,26 @@ degree_decimals: 0
 show_degrees: true
 ```
 
-## Parametry
+## Options
 
-- `direction_entity`: entita se smerem vetru. Podporuje stupne i textove hodnoty jako `N`, `SW`, `Severovychod`.
-- `speed_entity`: entita s rychlosti vetru.
-- `direction_language`: jazyk zkratek smeru. Podporuje `en` a `cs`.
-- `show_sun`: zobrazi polohu slunce na obvodu kompasu.
-- `sun_entity`: entita pro polohu slunce. Vychozi je `sun.sun`.
-- `sun_attribute`: atribut se stupni azimutu. Vychozi je `azimuth`.
-- `title`: volitelny nadpis.
-- `speed_unit`: volitelne prepsani jednotky rychlosti.
-- `speed_decimals`: pocet desetinnych mist pro rychlost.
-- `degree_decimals`: pocet desetinnych mist pro stupne.
-- `show_degrees`: zobrazi uprostred i prepocitany uhel.
+- `direction_entity`: entity with wind direction. Supports degrees and text values such as `N`, `SW`, or `Severovychod`.
+- `speed_entity`: entity with wind speed.
+- `direction_language`: direction label language. Supports `en` and `cs`.
+- `show_sun`: shows the sun position on the compass edge.
+- `sun_entity`: entity used for sun position. Default is `sun.sun`.
+- `sun_attribute`: attribute containing azimuth degrees. Default is `azimuth`.
+- `title`: optional card title.
+- `speed_unit`: optional speed unit override.
+- `speed_decimals`: number of decimal places for speed.
+- `degree_decimals`: number of decimal places for degrees.
+- `show_degrees`: shows the calculated angle in the center of the card.
 
-## Poznamky
+## Notes
 
-- Pokud je smer numeric, karta zobrazi i odpovidajici 16bodovou svetovou zkratku (`N`, `NNE`, `NE` ...).
-- Pri `direction_language: cs` karta zobrazi ceske zkratky (`S`, `SV`, `V`, `JZ` ...).
-- Pokud je smer textovy, karta se jej pokusi namapovat na uhel, aby se sipka otacela spravne.
-- Pri zapnutem `show_sun` karta vykresli samostatny indikator slunce podle azimutu.
-- Pokud `sun.sun` poskytuje `elevation` a `rising`, karta prida vyraznejsi animaci pro vychod a zapad slunce.
-- Pri `unavailable` nebo `unknown` stavu karta zustane renderovana a zobrazi, ze chybi data.
-- Ve svetlem rezimu karta prepne na svetly motiv, v tmavem rezimu zustane tmavy motiv.
-
-## Otestovano
-
-Karta byla nasazena a otestovana na testovaci Home Assistant instanci:
-
-- resource: `/local/compass-card.js`
-- dashboard: `dashboard-pokus`
-- testovaci entity: `sensor.compass_test_wind_direction`, `sensor.compass_test_wind_speed`
-- slunce: `sun.sun` s atributem `azimuth`
+- If the direction is numeric, the card also shows the corresponding 16-point compass label (`N`, `NNE`, `NE`, and so on).
+- With `direction_language: cs`, the card uses Czech labels (`S`, `SV`, `V`, `JZ`, and so on).
+- If the direction is text-based, the card tries to map it to an angle so the arrow rotates correctly.
+- When `show_sun` is enabled, the card renders a separate sun indicator based on azimuth.
+- If `sun.sun` provides `elevation` and `rising`, the card adds stronger sunrise and sunset animations.
+- When the entity state is `unavailable` or `unknown`, the card remains rendered and shows that data is missing.
+- In light mode the card switches to a light theme; in dark mode it stays dark.
