@@ -76,6 +76,65 @@ const DIRECTION_ALIASES = {
   nnw: 337.5,
 };
 
+const MOON_PHASE_LABELS = {
+  en: {
+    new_moon: "New moon",
+    waxing_crescent: "Waxing crescent",
+    first_quarter: "First quarter",
+    waxing_gibbous: "Waxing gibbous",
+    full_moon: "Full moon",
+    waning_gibbous: "Waning gibbous",
+    last_quarter: "Last quarter",
+    waning_crescent: "Waning crescent",
+  },
+  cs: {
+    new_moon: "Nov",
+    waxing_crescent: "Dorustajici srpek",
+    first_quarter: "Prvni ctvrt",
+    waxing_gibbous: "Dorustajici mesic",
+    full_moon: "Uplnek",
+    waning_gibbous: "Couvajici mesic",
+    last_quarter: "Posledni ctvrt",
+    waning_crescent: "Couvajici srpek",
+  },
+};
+
+const MOON_PHASE_ALIASES = {
+  new_moon: "new_moon",
+  newmoon: "new_moon",
+  nov: "new_moon",
+  waxing_crescent: "waxing_crescent",
+  waxingcrescent: "waxing_crescent",
+  dorustajici_srpek: "waxing_crescent",
+  dorustajici_srp: "waxing_crescent",
+  first_quarter: "first_quarter",
+  firstquarter: "first_quarter",
+  prvni_ctvrt: "first_quarter",
+  waxing_gibbous: "waxing_gibbous",
+  waxinggibbous: "waxing_gibbous",
+  dorustajici_mesic: "waxing_gibbous",
+  full_moon: "full_moon",
+  fullmoon: "full_moon",
+  uplnek: "full_moon",
+  waning_gibbous: "waning_gibbous",
+  waninggibbous: "waning_gibbous",
+  couvajici_mesic: "waning_gibbous",
+  last_quarter: "last_quarter",
+  lastquarter: "last_quarter",
+  posledni_ctvrt: "last_quarter",
+  third_quarter: "last_quarter",
+  thirdquarter: "last_quarter",
+  waning_crescent: "waning_crescent",
+  waningcrescent: "waning_crescent",
+  couvajici_srpek: "waning_crescent",
+};
+
+const RAD = Math.PI / 180;
+const DAY_MS = 1000 * 60 * 60 * 24;
+const J1970 = 2440588;
+const J2000 = 2451545;
+const OBLIQUITY = RAD * 23.4397;
+
 function normalizeDirectionValue(value) {
   return String(value)
     .trim()
@@ -116,6 +175,89 @@ function normalizeDirectionLanguage(value) {
   return value === "cs" ? "cs" : "en";
 }
 
+function toJulian(date) {
+  return date.valueOf() / DAY_MS - 0.5 + J1970;
+}
+
+function toDays(date) {
+  return toJulian(date) - J2000;
+}
+
+function rightAscension(lambda, beta) {
+  return Math.atan2(
+    Math.sin(lambda) * Math.cos(OBLIQUITY) -
+      Math.tan(beta) * Math.sin(OBLIQUITY),
+    Math.cos(lambda)
+  );
+}
+
+function declination(lambda, beta) {
+  return Math.asin(
+    Math.sin(beta) * Math.cos(OBLIQUITY) +
+      Math.cos(beta) * Math.sin(OBLIQUITY) * Math.sin(lambda)
+  );
+}
+
+function siderealTime(days, lw) {
+  return RAD * (280.16 + 360.9856235 * days) - lw;
+}
+
+function altitude(hourAngle, latitude, dec) {
+  return Math.asin(
+    Math.sin(latitude) * Math.sin(dec) +
+      Math.cos(latitude) * Math.cos(dec) * Math.cos(hourAngle)
+  );
+}
+
+function azimuth(hourAngle, latitude, dec) {
+  return Math.atan2(
+    Math.sin(hourAngle),
+    Math.cos(hourAngle) * Math.sin(latitude) -
+      Math.tan(dec) * Math.cos(latitude)
+  );
+}
+
+function getMoonCoordinates(days) {
+  const longitude = RAD * (218.316 + 13.176396 * days);
+  const meanAnomaly = RAD * (134.963 + 13.064993 * days);
+  const meanDistance = RAD * (93.272 + 13.22935 * days);
+  const lambda = longitude + RAD * 6.289 * Math.sin(meanAnomaly);
+  const beta = RAD * 5.128 * Math.sin(meanDistance);
+
+  return {
+    ra: rightAscension(lambda, beta),
+    dec: declination(lambda, beta),
+  };
+}
+
+function getMoonPosition(date, latitude, longitude) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  const lw = RAD * -longitude;
+  const phi = RAD * latitude;
+  const days = toDays(date);
+  const coords = getMoonCoordinates(days);
+  const hourAngle = siderealTime(days, lw) - coords.ra;
+  const alt = altitude(hourAngle, phi, coords.dec);
+  const az = azimuth(hourAngle, phi, coords.dec);
+
+  return {
+    azimuth: ((az / RAD) + 180 + 360) % 360,
+    elevation: alt / RAD,
+  };
+}
+
+function normalizeMoonPhase(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const normalized = normalizeDirectionValue(value);
+  return MOON_PHASE_ALIASES[normalized] || null;
+}
+
 function getDirectionLabel(degrees, fallbackValue, language) {
   if (degrees === null) {
     return fallbackValue ? String(fallbackValue).trim() : "N/A";
@@ -124,6 +266,39 @@ function getDirectionLabel(degrees, fallbackValue, language) {
   const index = Math.round(degrees / 22.5) % 16;
   const labels = COMPASS_DIRECTIONS[normalizeDirectionLanguage(language)];
   return labels[index];
+}
+
+function getMoonPhaseLabel(phase, language) {
+  if (!phase) {
+    return "";
+  }
+
+  const labels = MOON_PHASE_LABELS[normalizeDirectionLanguage(language)];
+  return labels[phase] || "";
+}
+
+function getObserverCoordinates(hass, config) {
+  const observerState = getEntityState(
+    hass,
+    config.observer_entity || "zone.home"
+  );
+
+  const latitude = Number.isFinite(parseNumericValue(config.observer_latitude))
+    ? parseNumericValue(config.observer_latitude)
+    : parseNumericValue(
+        observerState?.attributes?.latitude ?? hass?.config?.latitude
+      );
+  const longitude = Number.isFinite(parseNumericValue(config.observer_longitude))
+    ? parseNumericValue(config.observer_longitude)
+    : parseNumericValue(
+        observerState?.attributes?.longitude ?? hass?.config?.longitude
+      );
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return { latitude, longitude };
 }
 
 function formatSpeed(state, decimals) {
@@ -264,6 +439,30 @@ function buildBooleanOptions(selectedValue) {
   ].join("");
 }
 
+function buildMoonPhaseMarkup(phase, clipId) {
+  const baseClip = `url(#${clipId})`;
+
+  switch (phase) {
+    case "new_moon":
+      return `<circle class="moon-shadow" cx="140" cy="50" r="9.5"></circle>`;
+    case "waxing_crescent":
+      return `<ellipse class="moon-shadow" cx="135.5" cy="50" rx="8.1" ry="9.5" clip-path="${baseClip}"></ellipse>`;
+    case "first_quarter":
+      return `<rect class="moon-shadow" x="130.5" y="40.5" width="9.5" height="19" clip-path="${baseClip}"></rect>`;
+    case "waxing_gibbous":
+      return `<ellipse class="moon-shadow moon-shadow--sliver" cx="133" cy="50" rx="3.5" ry="9.5" clip-path="${baseClip}"></ellipse>`;
+    case "waning_gibbous":
+      return `<ellipse class="moon-shadow moon-shadow--sliver" cx="147" cy="50" rx="3.5" ry="9.5" clip-path="${baseClip}"></ellipse>`;
+    case "last_quarter":
+      return `<rect class="moon-shadow" x="140" y="40.5" width="9.5" height="19" clip-path="${baseClip}"></rect>`;
+    case "waning_crescent":
+      return `<ellipse class="moon-shadow" cx="144.5" cy="50" rx="8.1" ry="9.5" clip-path="${baseClip}"></ellipse>`;
+    case "full_moon":
+    default:
+      return "";
+  }
+}
+
 function fireConfigChanged(target, config) {
   target.dispatchEvent(
     new CustomEvent("config-changed", {
@@ -289,8 +488,16 @@ class CompassCardEditor extends HTMLElement {
       title: "",
       direction_language: "en",
       show_sun: false,
+      show_moon: false,
       sun_entity: "sun.sun",
       sun_attribute: "azimuth",
+      moon_phase_entity: "sensor.moon",
+      moon_position_entity: "",
+      moon_azimuth_attribute: "azimuth",
+      moon_elevation_attribute: "elevation",
+      observer_entity: "zone.home",
+      observer_latitude: "",
+      observer_longitude: "",
       speed_decimals: 1,
       degree_decimals: 0,
       show_degrees: true,
@@ -353,6 +560,9 @@ class CompassCardEditor extends HTMLElement {
       case "show_sun":
         config.show_sun = target.value === "true";
         break;
+      case "show_moon":
+        config.show_moon = target.value === "true";
+        break;
       case "sun_entity":
         if (target.value.trim()) {
           config.sun_entity = target.value;
@@ -365,6 +575,55 @@ class CompassCardEditor extends HTMLElement {
           config.sun_attribute = target.value.trim();
         } else {
           delete config.sun_attribute;
+        }
+        break;
+      case "moon_phase_entity":
+        if (target.value.trim()) {
+          config.moon_phase_entity = target.value;
+        } else {
+          delete config.moon_phase_entity;
+        }
+        break;
+      case "moon_position_entity":
+        if (target.value.trim()) {
+          config.moon_position_entity = target.value;
+        } else {
+          delete config.moon_position_entity;
+        }
+        break;
+      case "moon_azimuth_attribute":
+        if (target.value.trim()) {
+          config.moon_azimuth_attribute = target.value.trim();
+        } else {
+          delete config.moon_azimuth_attribute;
+        }
+        break;
+      case "moon_elevation_attribute":
+        if (target.value.trim()) {
+          config.moon_elevation_attribute = target.value.trim();
+        } else {
+          delete config.moon_elevation_attribute;
+        }
+        break;
+      case "observer_entity":
+        if (target.value.trim()) {
+          config.observer_entity = target.value;
+        } else {
+          delete config.observer_entity;
+        }
+        break;
+      case "observer_latitude":
+        if (target.value.trim()) {
+          config.observer_latitude = target.value.trim();
+        } else {
+          delete config.observer_latitude;
+        }
+        break;
+      case "observer_longitude":
+        if (target.value.trim()) {
+          config.observer_longitude = target.value.trim();
+        } else {
+          delete config.observer_longitude;
         }
         break;
       case "speed_decimals": {
@@ -414,6 +673,25 @@ class CompassCardEditor extends HTMLElement {
       config.direction_language
     );
     const showSunOptions = buildBooleanOptions(config.show_sun === true);
+    const showMoonOptions = buildBooleanOptions(config.show_moon === true);
+    const moonPhaseOptions = buildEntityOptions(
+      hass,
+      ["sensor"],
+      config.moon_phase_entity || "sensor.moon",
+      "Select moon phase entity"
+    );
+    const moonPositionOptions = buildEntityOptions(
+      hass,
+      ["sensor"],
+      config.moon_position_entity || "",
+      "Select moon position entity"
+    );
+    const observerOptions = buildEntityOptions(
+      hass,
+      ["zone"],
+      config.observer_entity || "zone.home",
+      "Select observer entity"
+    );
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -544,6 +822,46 @@ class CompassCardEditor extends HTMLElement {
               Sun attribute
               <input data-field="sun_attribute" type="text" value="${escapeHtml(config.sun_attribute || "azimuth")}" placeholder="azimuth">
             </label>
+            <label>
+              Show moon
+              <select data-field="show_moon">
+                ${showMoonOptions}
+              </select>
+            </label>
+            <label>
+              Moon phase entity
+              <select data-field="moon_phase_entity">
+                ${moonPhaseOptions}
+              </select>
+            </label>
+            <label>
+              Moon position entity
+              <select data-field="moon_position_entity">
+                ${moonPositionOptions}
+              </select>
+            </label>
+            <label>
+              Moon azimuth attribute
+              <input data-field="moon_azimuth_attribute" type="text" value="${escapeHtml(config.moon_azimuth_attribute || "azimuth")}" placeholder="azimuth">
+            </label>
+            <label>
+              Moon elevation attribute
+              <input data-field="moon_elevation_attribute" type="text" value="${escapeHtml(config.moon_elevation_attribute || "elevation")}" placeholder="elevation">
+            </label>
+            <label>
+              Observer entity
+              <select data-field="observer_entity">
+                ${observerOptions}
+              </select>
+            </label>
+            <label>
+              Observer latitude override
+              <input data-field="observer_latitude" type="text" value="${escapeHtml(config.observer_latitude || "")}" placeholder="49.1951">
+            </label>
+            <label>
+              Observer longitude override
+              <input data-field="observer_longitude" type="text" value="${escapeHtml(config.observer_longitude || "")}" placeholder="16.6068">
+            </label>
           </div>
         </div>
 
@@ -623,6 +941,7 @@ class CompassCard extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this._config = null;
+    this._instanceId = Math.random().toString(36).slice(2, 10);
   }
 
   setConfig(config) {
@@ -638,8 +957,16 @@ class CompassCard extends HTMLElement {
       title: config.title || "Wind Compass",
       direction_language: normalizeDirectionLanguage(config.direction_language),
       show_sun: config.show_sun === true,
+      show_moon: config.show_moon === true,
       sun_entity: config.sun_entity || "sun.sun",
       sun_attribute: config.sun_attribute || "azimuth",
+      moon_phase_entity: config.moon_phase_entity || "sensor.moon",
+      moon_position_entity: config.moon_position_entity || "",
+      moon_azimuth_attribute: config.moon_azimuth_attribute || "azimuth",
+      moon_elevation_attribute: config.moon_elevation_attribute || "elevation",
+      observer_entity: config.observer_entity || "zone.home",
+      observer_latitude: config.observer_latitude ?? "",
+      observer_longitude: config.observer_longitude ?? "",
       speed_decimals: Number.isFinite(config.speed_decimals)
         ? config.speed_decimals
         : 1,
@@ -669,6 +996,9 @@ class CompassCard extends HTMLElement {
       show_sun: true,
       sun_entity: "sun.sun",
       sun_attribute: "azimuth",
+      show_moon: false,
+      moon_phase_entity: "sensor.moon",
+      observer_entity: "zone.home",
     };
   }
 
@@ -694,6 +1024,48 @@ class CompassCard extends HTMLElement {
     const sunRising = Boolean(sunState?.attributes?.rising);
     const sunPhase = getSunPhase(sunElevation, sunRising);
     const sunVisible = this._config.show_sun && sunDegrees !== null;
+    const observerCoordinates = getObserverCoordinates(this._hass, this._config);
+    const moonPositionEntityId = this._config.moon_position_entity || "";
+    const moonPhaseState = this._config.show_moon
+      ? getEntityState(this._hass, this._config.moon_phase_entity)
+      : null;
+    const moonPositionState = this._config.show_moon && moonPositionEntityId
+      ? getEntityState(this._hass, moonPositionEntityId)
+      : null;
+    const moonPhase = normalizeMoonPhase(moonPhaseState?.state);
+    const moonDegreesFromEntity = this._config.show_moon && moonPositionEntityId
+      ? getEntityNumericValue(
+          this._hass,
+          moonPositionEntityId,
+          this._config.moon_azimuth_attribute
+        )
+      : null;
+    const moonElevationFromEntity = parseNumericValue(
+      moonPositionState?.attributes?.[this._config.moon_elevation_attribute]
+    );
+    const moonPositionComputed =
+      this._config.show_moon &&
+      moonDegreesFromEntity === null &&
+      observerCoordinates
+        ? getMoonPosition(
+            new Date(),
+            observerCoordinates.latitude,
+            observerCoordinates.longitude
+          )
+        : null;
+    const moonDegrees =
+      moonDegreesFromEntity ?? moonPositionComputed?.azimuth ?? null;
+    const moonElevation =
+      moonElevationFromEntity ?? moonPositionComputed?.elevation ?? null;
+    const moonVisible = this._config.show_moon && moonDegrees !== null;
+    const moonBelowHorizon = Number.isFinite(moonElevation) && moonElevation < 0;
+    const moonPhaseLabel =
+      this._config.show_moon && moonPhase
+        ? getMoonPhaseLabel(moonPhase, directionLanguage)
+        : "";
+    const moonClipId = `moon-clip-${this._instanceId}`;
+    const moonCaption =
+      !moonVisible && moonPhaseLabel ? moonPhaseLabel : "";
 
     const rawDirection = directionState?.state;
     const directionDegrees = parseDirectionDegrees(rawDirection);
@@ -723,9 +1095,9 @@ class CompassCard extends HTMLElement {
     const rotation = directionDegrees ?? 0;
     const subtitle = unavailable
       ? "Entity unavailable"
-      : this._config.show_degrees
-        ? degreesLabel
-        : "";
+        : this._config.show_degrees
+          ? degreesLabel
+          : "";
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -747,8 +1119,12 @@ class CompassCard extends HTMLElement {
           --compass-svg-shadow: rgba(0, 0, 0, 0.22);
           --compass-tick: rgba(230, 252, 249, 0.28);
           --compass-tick-strong: rgba(230, 252, 249, 0.54);
-          --compass-cardinal: rgba(230, 252, 249, 0.78);
-          --compass-cardinal-stroke: rgba(6, 18, 28, 0.78);
+          --compass-cardinal: rgba(244, 251, 255, 0.96);
+          --compass-cardinal-stroke: rgba(3, 12, 20, 0.96);
+          --compass-moon: #edf2ff;
+          --compass-moon-shadow: rgba(19, 29, 46, 0.88);
+          --compass-moon-glow: rgba(196, 210, 255, 0.28);
+          --compass-moon-crater: rgba(162, 178, 215, 0.34);
           display: block;
         }
 
@@ -772,6 +1148,10 @@ class CompassCard extends HTMLElement {
             --compass-tick-strong: rgba(23, 72, 98, 0.58);
             --compass-cardinal: rgba(25, 74, 100, 0.8);
             --compass-cardinal-stroke: rgba(245, 251, 255, 0.92);
+            --compass-moon: #f9fbff;
+            --compass-moon-shadow: rgba(94, 118, 153, 0.66);
+            --compass-moon-glow: rgba(163, 184, 221, 0.28);
+            --compass-moon-crater: rgba(142, 158, 188, 0.26);
           }
         }
 
@@ -849,13 +1229,14 @@ class CompassCard extends HTMLElement {
         .cardinal-label {
           fill: var(--compass-cardinal);
           stroke: var(--compass-cardinal-stroke);
-          stroke-width: 4px;
+          stroke-width: 4.8px;
           paint-order: stroke fill;
           font-size: 18px;
           font-weight: 800;
           text-anchor: middle;
           dominant-baseline: middle;
           letter-spacing: 0.08em;
+          filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.34));
         }
 
         .arrow-glow {
@@ -933,6 +1314,49 @@ class CompassCard extends HTMLElement {
         .sun-orbit--sunset .sun-glow,
         .sun-orbit--sunset .sun-ray {
           filter: drop-shadow(0 0 10px rgba(255, 135, 94, 0.5));
+        }
+
+        .moon-orbit {
+          opacity: ${moonVisible ? (moonBelowHorizon ? "0.34" : "1") : "0"};
+        }
+
+        .moon-marker {
+          transform-origin: 140px 50px;
+        }
+
+        .moon-marker--visible {
+          animation: moon-sway 6.4s ease-in-out infinite;
+        }
+
+        .moon-glow {
+          fill: var(--compass-moon-glow);
+        }
+
+        .moon-disc {
+          fill: var(--compass-moon);
+          stroke: rgba(255, 255, 255, 0.36);
+          stroke-width: 0.8;
+        }
+
+        .moon-shadow {
+          fill: var(--compass-moon-shadow);
+        }
+
+        .moon-shadow--sliver {
+          opacity: 0.92;
+        }
+
+        .moon-crater {
+          fill: var(--compass-moon-crater);
+        }
+
+        @keyframes moon-sway {
+          0%, 100% {
+            transform: translateY(0) scale(0.98);
+          }
+          50% {
+            transform: translateY(-1px) scale(1.03);
+          }
         }
 
         @keyframes sun-pulse {
@@ -1029,6 +1453,18 @@ class CompassCard extends HTMLElement {
         .subtitle:empty {
           display: none;
         }
+
+        .moon-phase {
+          margin-top: 5px;
+          font-size: 0.68rem;
+          color: var(--compass-muted);
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+
+        .moon-phase:empty {
+          display: none;
+        }
       </style>
 
       <ha-card>
@@ -1064,6 +1500,26 @@ class CompassCard extends HTMLElement {
                 `
                 : ""
             }
+            ${
+              moonVisible
+                ? `
+                  <defs>
+                    <clipPath id="${moonClipId}">
+                      <circle cx="140" cy="50" r="9.5"></circle>
+                    </clipPath>
+                  </defs>
+                  <g class="moon-orbit" transform="rotate(${moonDegrees ?? 0} 140 140)">
+                    <g class="moon-marker moon-marker--visible">
+                      <circle class="moon-glow" cx="140" cy="50" r="15"></circle>
+                      <circle class="moon-disc" cx="140" cy="50" r="9.5"></circle>
+                      ${buildMoonPhaseMarkup(moonPhase, moonClipId)}
+                      <circle class="moon-crater" cx="137" cy="47" r="1.4"></circle>
+                      <circle class="moon-crater" cx="143.5" cy="52.2" r="1.1"></circle>
+                    </g>
+                  </g>
+                `
+                : ""
+            }
             <g transform="rotate(${rotation} 140 140)" style="opacity: ${directionDegrees === null ? "0.24" : "1"}">
               <circle class="arrow-glow" cx="140" cy="140" r="10"></circle>
               <line class="arrow-line" x1="140" y1="140" x2="140" y2="72"></line>
@@ -1076,6 +1532,7 @@ class CompassCard extends HTMLElement {
               <div class="direction">${directionLabel}</div>
               <div class="speed">${speedValue}${speedUnit ? ` ${speedUnit}` : ""}</div>
               <div class="subtitle">${subtitle}</div>
+              <div class="moon-phase">${moonCaption}</div>
             </div>
           </div>
         </div>
@@ -1098,6 +1555,6 @@ if (!window.customCards.some((card) => card.type === "compass-card")) {
     type: "compass-card",
     name: "Compass Card",
     description:
-      "A graphical Home Assistant compass card for wind direction, wind speed, and optional sun position.",
+      "A graphical Home Assistant compass card for wind direction, wind speed, and optional sun and moon position.",
   });
 }
