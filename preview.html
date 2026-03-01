@@ -142,12 +142,20 @@
 
         <div class="row">
           <label>
+            Smer slunce ve stupnich
+            <input id="sun-direction" type="range" min="0" max="359" step="1" value="170">
+            <span id="sun-direction-value" class="value">170°</span>
+          </label>
+          <label>
             Textovy smer
             <select id="direction-mode">
               <option value="degrees" selected>Stupne</option>
               <option value="text">Text</option>
             </select>
           </label>
+        </div>
+
+        <div class="row">
           <label>
             Text smeru
             <select id="direction-text">
@@ -181,6 +189,13 @@
 
         <div class="row">
           <label>
+            Zobrazit slunce
+            <select id="show-sun">
+              <option value="true" selected>Ano</option>
+              <option value="false">Ne</option>
+            </select>
+          </label>
+          <label>
             Zobrazit stupne
             <select id="show-degrees">
               <option value="true" selected>Ano</option>
@@ -200,13 +215,16 @@
       const titleInput = document.getElementById("title");
       const directionInput = document.getElementById("direction");
       const speedInput = document.getElementById("speed");
+      const sunDirectionInput = document.getElementById("sun-direction");
       const unitInput = document.getElementById("unit");
       const directionLanguageInput = document.getElementById("direction-language");
+      const showSunInput = document.getElementById("show-sun");
       const directionModeInput = document.getElementById("direction-mode");
       const directionTextInput = document.getElementById("direction-text");
       const showDegreesInput = document.getElementById("show-degrees");
       const directionValue = document.getElementById("direction-value");
       const speedValue = document.getElementById("speed-value");
+      const sunDirectionValue = document.getElementById("sun-direction-value");
 
       const config = {
         type: "custom:compass-card",
@@ -223,16 +241,21 @@
       function renderCard() {
         const directionDegrees = Number(directionInput.value);
         const speed = Number(speedInput.value);
+        const sunDegrees = Number(sunDirectionInput.value);
         const useTextDirection = directionModeInput.value === "text";
         const directionState = useTextDirection ? directionTextInput.value : String(directionDegrees);
 
         directionValue.textContent = `${directionDegrees}°`;
         speedValue.textContent = `${speed.toFixed(1)} ${unitInput.value || "km/h"}`;
+        sunDirectionValue.textContent = `${sunDegrees}°`;
 
         card.setConfig({
           ...config,
           title: titleInput.value || "Smer vetru",
           direction_language: directionLanguageInput.value,
+          show_sun: showSunInput.value === "true",
+          sun_entity: "sun.sun",
+          sun_attribute: "azimuth",
           speed_unit: unitInput.value || "",
           show_degrees: showDegreesInput.value === "true",
         });
@@ -255,6 +278,14 @@
                 unit_of_measurement: unitInput.value || "km/h",
               },
             },
+            "sun.sun": {
+              entity_id: "sun.sun",
+              state: sunDegrees < 180 ? "above_horizon" : "below_horizon",
+              attributes: {
+                friendly_name: "Sun",
+                azimuth: sunDegrees,
+              },
+            },
           },
         };
       }
@@ -263,8 +294,10 @@
         titleInput,
         directionInput,
         speedInput,
+        sunDirectionInput,
         unitInput,
         directionLanguageInput,
+        showSunInput,
         directionModeInput,
         directionTextInput,
         showDegreesInput,

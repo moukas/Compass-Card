@@ -160,6 +160,19 @@ function getEntityState(hass, entityId) {
   return hass.states[entityId] ?? null;
 }
 
+function getEntityNumericValue(hass, entityId, attribute) {
+  const entityState = getEntityState(hass, entityId);
+  if (!entityState) {
+    return null;
+  }
+
+  const sourceValue = attribute
+    ? entityState.attributes?.[attribute]
+    : entityState.state;
+
+  return parseDirectionDegrees(sourceValue);
+}
+
 function getSpeedUnit(entityState, config) {
   return (
     config.speed_unit ||
@@ -211,6 +224,13 @@ function buildDirectionLanguageOptions(selectedValue) {
   ].join("");
 }
 
+function buildBooleanOptions(selectedValue) {
+  return [
+    `<option value="true"${selectedValue ? " selected" : ""}>Ano</option>`,
+    `<option value="false"${!selectedValue ? " selected" : ""}>Ne</option>`,
+  ].join("");
+}
+
 function fireConfigChanged(target, config) {
   target.dispatchEvent(
     new CustomEvent("config-changed", {
@@ -235,6 +255,9 @@ class CompassCardEditor extends HTMLElement {
       type: "custom:compass-card",
       title: "",
       direction_language: "en",
+      show_sun: false,
+      sun_entity: "sun.sun",
+      sun_attribute: "azimuth",
       speed_decimals: 1,
       degree_decimals: 0,
       show_degrees: true,
@@ -294,6 +317,23 @@ class CompassCardEditor extends HTMLElement {
       case "direction_language":
         config.direction_language = normalizeDirectionLanguage(target.value);
         break;
+      case "show_sun":
+        config.show_sun = target.value === "true";
+        break;
+      case "sun_entity":
+        if (target.value.trim()) {
+          config.sun_entity = target.value;
+        } else {
+          delete config.sun_entity;
+        }
+        break;
+      case "sun_attribute":
+        if (target.value.trim()) {
+          config.sun_attribute = target.value.trim();
+        } else {
+          delete config.sun_attribute;
+        }
+        break;
       case "speed_decimals": {
         const value = Number.parseInt(target.value, 10);
         config.speed_decimals = Number.isFinite(value) ? value : 1;
@@ -331,9 +371,16 @@ class CompassCardEditor extends HTMLElement {
       config.speed_entity,
       "Select speed entity"
     );
+    const sunOptions = buildEntityOptions(
+      hass,
+      ["sun", "sensor"],
+      config.sun_entity || "sun.sun",
+      "Select sun entity"
+    );
     const directionLanguageOptions = buildDirectionLanguageOptions(
       config.direction_language
     );
+    const showSunOptions = buildBooleanOptions(config.show_sun === true);
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -448,6 +495,22 @@ class CompassCardEditor extends HTMLElement {
               Speed unit override
               <input data-field="speed_unit" type="text" value="${escapeHtml(config.speed_unit || "")}" placeholder="km/h">
             </label>
+            <label>
+              Show sun position
+              <select data-field="show_sun">
+                ${showSunOptions}
+              </select>
+            </label>
+            <label>
+              Sun entity
+              <select data-field="sun_entity">
+                ${sunOptions}
+              </select>
+            </label>
+            <label>
+              Sun attribute
+              <input data-field="sun_attribute" type="text" value="${escapeHtml(config.sun_attribute || "azimuth")}" placeholder="azimuth">
+            </label>
           </div>
         </div>
 
@@ -541,6 +604,9 @@ class CompassCard extends HTMLElement {
     this._config = {
       title: config.title || "Wind Compass",
       direction_language: normalizeDirectionLanguage(config.direction_language),
+      show_sun: config.show_sun === true,
+      sun_entity: config.sun_entity || "sun.sun",
+      sun_attribute: config.sun_attribute || "azimuth",
       speed_decimals: Number.isFinite(config.speed_decimals)
         ? config.speed_decimals
         : 1,
@@ -567,6 +633,9 @@ class CompassCard extends HTMLElement {
       title: "Wind Compass",
       direction_entity: "sensor.wind_direction",
       speed_entity: "sensor.wind_speed",
+      show_sun: true,
+      sun_entity: "sun.sun",
+      sun_attribute: "azimuth",
     };
   }
 
@@ -578,6 +647,14 @@ class CompassCard extends HTMLElement {
     const directionState = getEntityState(this._hass, this._config.direction_entity);
     const speedState = getEntityState(this._hass, this._config.speed_entity);
     const directionLanguage = normalizeDirectionLanguage(this._config.direction_language);
+    const sunDegrees = this._config.show_sun
+      ? getEntityNumericValue(
+          this._hass,
+          this._config.sun_entity,
+          this._config.sun_attribute
+        )
+      : null;
+    const sunVisible = this._config.show_sun && sunDegrees !== null;
 
     const rawDirection = directionState?.state;
     const directionDegrees = parseDirectionDegrees(rawDirection);
@@ -731,6 +808,26 @@ class CompassCard extends HTMLElement {
           fill: var(--compass-arrow);
         }
 
+        .sun-orbit {
+          opacity: ${sunVisible ? "1" : "0.28"};
+        }
+
+        .sun-ray {
+          stroke: #ffd36b;
+          stroke-width: 2.2;
+          stroke-linecap: round;
+        }
+
+        .sun-core {
+          fill: #ffd15c;
+          stroke: rgba(255, 255, 255, 0.32);
+          stroke-width: 1;
+        }
+
+        .sun-glow {
+          fill: rgba(255, 209, 92, 0.2);
+        }
+
         .center-wrap {
           position: absolute;
           inset: 50%;
@@ -796,6 +893,24 @@ class CompassCard extends HTMLElement {
             <circle class="ring" cx="140" cy="140" r="88"></circle>
             ${buildTicks()}
             ${buildLabels(directionLanguage)}
+            ${
+              this._config.show_sun
+                ? `
+                  <g class="sun-orbit" transform="rotate(${sunDegrees ?? 0} 140 140)">
+                    <circle class="sun-glow" cx="140" cy="44" r="16"></circle>
+                    <line class="sun-ray" x1="140" y1="24" x2="140" y2="14"></line>
+                    <line class="sun-ray" x1="140" y1="74" x2="140" y2="84"></line>
+                    <line class="sun-ray" x1="120" y1="44" x2="110" y2="44"></line>
+                    <line class="sun-ray" x1="160" y1="44" x2="170" y2="44"></line>
+                    <line class="sun-ray" x1="126" y1="30" x2="119" y2="23"></line>
+                    <line class="sun-ray" x1="154" y1="58" x2="161" y2="65"></line>
+                    <line class="sun-ray" x1="126" y1="58" x2="119" y2="65"></line>
+                    <line class="sun-ray" x1="154" y1="30" x2="161" y2="23"></line>
+                    <circle class="sun-core" cx="140" cy="44" r="10"></circle>
+                  </g>
+                `
+                : ""
+            }
             <g transform="rotate(${rotation} 140 140)" style="opacity: ${directionDegrees === null ? "0.24" : "1"}">
               <circle class="arrow-glow" cx="140" cy="140" r="10"></circle>
               <line class="arrow-line" x1="140" y1="140" x2="140" y2="72"></line>
