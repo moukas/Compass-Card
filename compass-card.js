@@ -135,6 +135,11 @@ const J1970 = 2440588;
 const J2000 = 2451545;
 const OBLIQUITY = RAD * 23.4397;
 const VIRTUAL_COMPASS_ENTITY_ID = "__device_compass__";
+const DEVICE_COMPASS_RENDER_THROTTLE_MS = 90;
+const DEVICE_COMPASS_DEADBAND_DEG = 1.2;
+const DEVICE_COMPASS_MAX_STEP_DEG = 28;
+const DEVICE_COMPASS_SMOOTHING_SLOW = 0.24;
+const DEVICE_COMPASS_SMOOTHING_FAST = 0.56;
 const COMPASS_HEADING_ATTRIBUTE_CANDIDATES = [
   "heading",
   "compass_heading",
@@ -194,6 +199,14 @@ function normalizeDegrees(value) {
   }
 
   return ((value % 360) + 360) % 360;
+}
+
+function getShortestAngleDelta(fromDegrees, toDegrees) {
+  if (!Number.isFinite(fromDegrees) || !Number.isFinite(toDegrees)) {
+    return 0;
+  }
+
+  return ((toDegrees - fromDegrees + 540) % 360) - 180;
 }
 
 function toJulian(date) {
@@ -1174,6 +1187,9 @@ class CompassCard extends HTMLElement {
     this._instanceId = Math.random().toString(36).slice(2, 10);
     this._deviceCompassHeading = null;
     this._orientationListening = false;
+    this._orientationSource = "";
+    this._lastOrientationRenderTimestamp = 0;
+    this._orientationRenderTimer = null;
     this._orientationPermissionState = "unknown";
     this._boundDeviceOrientation = this._onDeviceOrientation.bind(this);
     this._boundEnableCompass = this._onEnableCompassClick.bind(this);
@@ -1188,6 +1204,7 @@ class CompassCard extends HTMLElement {
       throw new Error("Compass card requires speed_entity.");
     }
 
+    const previousMode = normalizeCompassMode(this._config?.compass_mode);
     this._config = {
       ...config,
       title: config.title || "Wind Compass",
@@ -1214,6 +1231,17 @@ class CompassCard extends HTMLElement {
         : 0,
       show_degrees: config.show_degrees !== false,
     };
+
+    const nextMode = normalizeCompassMode(this._config?.compass_mode);
+    if (
+      previousMode === "follow_compass" &&
+      nextMode !== "follow_compass" &&
+      typeof window !== "undefined" &&
+      this._orientationRenderTimer !== null
+    ) {
+      window.clearTimeout(this._orientationRenderTimer);
+      this._orientationRenderTimer = null;
+    }
   }
 
   connectedCallback() {
@@ -1242,6 +1270,11 @@ class CompassCard extends HTMLElement {
     window.removeEventListener("deviceorientationabsolute", this._boundDeviceOrientation, true);
     window.removeEventListener("deviceorientation", this._boundDeviceOrientation, true);
     this._orientationListening = false;
+    this._orientationSource = "";
+    if (this._orientationRenderTimer !== null) {
+      window.clearTimeout(this._orientationRenderTimer);
+      this._orientationRenderTimer = null;
+    }
   }
 
   _extractHeadingFromOrientationEvent(event) {
@@ -1262,23 +1295,95 @@ class CompassCard extends HTMLElement {
     return normalizeDegrees(360 - alpha);
   }
 
-  _onDeviceOrientation(event) {
-    const heading = this._extractHeadingFromOrientationEvent(event);
-    if (heading === null) {
+  _getOrientationSource(event) {
+    return event.type === "deviceorientationabsolute" || event.absolute === true
+      ? "absolute"
+      : "relative";
+  }
+
+  _acceptOrientationSource(source) {
+    if (this._orientationSource === "absolute" && source !== "absolute") {
+      return false;
+    }
+
+    if (!this._orientationSource || source === "absolute") {
+      this._orientationSource = source;
+    }
+
+    return true;
+  }
+
+  _scheduleOrientationRender() {
+    if (normalizeCompassMode(this._config?.compass_mode) !== "follow_compass") {
       return;
     }
 
-    if (
-      this._deviceCompassHeading !== null &&
-      Math.abs(this._deviceCompassHeading - heading) < 0.4
-    ) {
-      return;
-    }
-
-    this._deviceCompassHeading = heading;
-    if (normalizeCompassMode(this._config?.compass_mode) === "follow_compass") {
+    const now = Date.now();
+    const elapsed = now - this._lastOrientationRenderTimestamp;
+    if (elapsed >= DEVICE_COMPASS_RENDER_THROTTLE_MS) {
+      this._lastOrientationRenderTimestamp = now;
+      if (this._orientationRenderTimer !== null) {
+        window.clearTimeout(this._orientationRenderTimer);
+        this._orientationRenderTimer = null;
+      }
       this.render();
+      return;
     }
+
+    if (this._orientationRenderTimer !== null) {
+      return;
+    }
+
+    const waitTime = DEVICE_COMPASS_RENDER_THROTTLE_MS - elapsed;
+    this._orientationRenderTimer = window.setTimeout(() => {
+      this._orientationRenderTimer = null;
+      this._lastOrientationRenderTimestamp = Date.now();
+      if (normalizeCompassMode(this._config?.compass_mode) === "follow_compass") {
+        this.render();
+      }
+    }, waitTime);
+  }
+
+  _onDeviceOrientation(event) {
+    const source = this._getOrientationSource(event);
+    if (!this._acceptOrientationSource(source)) {
+      return;
+    }
+
+    const rawHeading = this._extractHeadingFromOrientationEvent(event);
+    if (rawHeading === null) {
+      return;
+    }
+
+    if (this._deviceCompassHeading === null) {
+      this._deviceCompassHeading = rawHeading;
+      this._scheduleOrientationRender();
+      return;
+    }
+
+    const delta = getShortestAngleDelta(this._deviceCompassHeading, rawHeading);
+    const absoluteDelta = Math.abs(delta);
+    if (absoluteDelta < DEVICE_COMPASS_DEADBAND_DEG) {
+      return;
+    }
+
+    const limitedDelta = Math.max(
+      -DEVICE_COMPASS_MAX_STEP_DEG,
+      Math.min(DEVICE_COMPASS_MAX_STEP_DEG, delta)
+    );
+    const smoothing =
+      absoluteDelta > 25
+        ? DEVICE_COMPASS_SMOOTHING_FAST
+        : DEVICE_COMPASS_SMOOTHING_SLOW;
+    const nextHeading = normalizeDegrees(
+      this._deviceCompassHeading + limitedDelta * smoothing
+    );
+    if (nextHeading === null) {
+      return;
+    }
+
+    this._deviceCompassHeading = nextHeading;
+    this._scheduleOrientationRender();
   }
 
   _canRequestOrientationPermission() {
