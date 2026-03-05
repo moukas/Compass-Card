@@ -182,6 +182,21 @@
 
         <div class="row">
           <label>
+            Rezim kompasu
+            <select id="compass-mode">
+              <option value="north_locked" selected>Zamknout sever</option>
+              <option value="follow_compass">Otacet podle kompasu</option>
+            </select>
+          </label>
+          <label>
+            Heading kompasu
+            <input id="compass-heading" type="range" min="0" max="359" step="1" value="32">
+            <span id="compass-heading-value" class="value">32°</span>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>
             Smer slunce ve stupnich
             <input id="sun-direction" type="range" min="0" max="359" step="1" value="170">
             <span id="sun-direction-value" class="value">170°</span>
@@ -338,6 +353,8 @@
       const themeModeInput = document.getElementById("theme-mode");
       const directionInput = document.getElementById("direction");
       const speedInput = document.getElementById("speed");
+      const compassModeInput = document.getElementById("compass-mode");
+      const compassHeadingInput = document.getElementById("compass-heading");
       const sunDirectionInput = document.getElementById("sun-direction");
       const sunElevationInput = document.getElementById("sun-elevation");
       const sunRisingInput = document.getElementById("sun-rising");
@@ -357,6 +374,7 @@
       const showDegreesInput = document.getElementById("show-degrees");
       const directionValue = document.getElementById("direction-value");
       const speedValue = document.getElementById("speed-value");
+      const compassHeadingValue = document.getElementById("compass-heading-value");
       const sunDirectionValue = document.getElementById("sun-direction-value");
       const sunElevationValue = document.getElementById("sun-elevation-value");
       const moonDirectionValue = document.getElementById("moon-direction-value");
@@ -435,6 +453,8 @@
       function renderCard() {
         const directionDegrees = Number(directionInput.value);
         const speed = Number(speedInput.value);
+        const compassMode = compassModeInput.value;
+        const compassHeading = Number(compassHeadingInput.value);
         const sunDegrees = Number(sunDirectionInput.value);
         const sunElevation = Number(sunElevationInput.value);
         const sunRising = sunRisingInput.value === "true";
@@ -452,6 +472,7 @@
 
         directionValue.textContent = `${directionDegrees}°`;
         speedValue.textContent = `${speed.toFixed(1)} ${unitInput.value || "km/h"}`;
+        compassHeadingValue.textContent = `${compassHeading}°`;
         sunDirectionValue.textContent = `${sunDegrees}°`;
         sunElevationValue.textContent = `${sunElevation.toFixed(1)}°`;
         moonDirectionValue.textContent = `${moonDegrees}°`;
@@ -461,6 +482,9 @@
           ...config,
           title: titleInput.value || "Smer vetru",
           direction_language: directionLanguageInput.value,
+          compass_mode: compassMode,
+          compass_entity: "sensor.preview_compass_heading",
+          compass_attribute: "heading",
           show_sun: showSunInput.value === "true",
           show_moon: showMoon,
           sun_entity: "sun.sun",
@@ -490,6 +514,15 @@
               attributes: {
                 friendly_name: "Preview Wind Speed",
                 unit_of_measurement: unitInput.value || "km/h",
+              },
+            },
+            "sensor.preview_compass_heading": {
+              entity_id: "sensor.preview_compass_heading",
+              state: String(compassHeading),
+              attributes: {
+                friendly_name: "Preview Compass Heading",
+                heading: compassHeading,
+                unit_of_measurement: "°",
               },
             },
             "sun.sun": {
@@ -549,6 +582,8 @@
         themeModeInput,
         directionInput,
         speedInput,
+        compassModeInput,
+        compassHeadingInput,
         sunDirectionInput,
         sunElevationInput,
         sunRisingInput,

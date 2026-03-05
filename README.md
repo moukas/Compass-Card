@@ -9,6 +9,8 @@ Compass Card is a Home Assistant Lovelace card that visualizes wind direction an
 - Czech and English direction labels
 - optional sun position based on `sun.sun.attributes.azimuth`
 - optional moon phase and moon position
+- north lock mode or compass-driven card rotation
+- compass entity support with phone compass fallback
 - sunrise, sunset, and daytime sun animations
 - Lovelace visual editor
 - automatic light and dark theme support
@@ -72,6 +74,9 @@ title: Wind
 direction_entity: sensor.wind_direction
 speed_entity: sensor.wind_speed
 direction_language: cs
+compass_mode: follow_compass
+compass_entity: sensor.phone_heading
+compass_attribute: heading
 show_sun: true
 sun_entity: sun.sun
 sun_attribute: azimuth
@@ -89,6 +94,10 @@ show_degrees: true
 - `direction_entity`: entity with wind direction. Supports degrees and text values such as `N`, `SW`, or `Severovychod`.
 - `speed_entity`: entity with wind speed.
 - `direction_language`: direction label language. Supports `en` and `cs`.
+- `compass_mode`: compass orientation mode. Supports `north_locked` and `follow_compass`.
+- `compass_entity`: optional entity that provides heading for compass rotation. If omitted, the card auto-detects a suitable entity and then falls back to the phone compass.
+- `compass_attribute`: optional heading attribute for `compass_entity` (for example `heading`). If omitted, state is used first.
+- `compass_entity: __device_compass__`: forces the built-in phone compass virtual entity.
 - `show_sun`: shows the sun position on the compass edge.
 - `sun_entity`: entity used for sun position. Default is `sun.sun`.
 - `sun_attribute`: attribute containing azimuth degrees. Default is `azimuth`.
@@ -111,6 +120,10 @@ show_degrees: true
 - If the direction is numeric, the card also shows the corresponding 16-point compass label (`N`, `NNE`, `NE`, and so on).
 - With `direction_language: cs`, the card uses Czech labels (`S`, `SV`, `V`, `JZ`, and so on).
 - If the direction is text-based, the card tries to map it to an angle so the arrow rotates correctly.
+- In `north_locked` mode, north stays fixed at the top.
+- In `follow_compass` mode, the whole compass rotates by heading (including wind arrow, sun, and moon markers), so their positions remain correct.
+- You can use `compass_entity` or select the built-in `Phone compass (virtual entity)` in the visual editor.
+- On iOS Safari/Home Assistant app, enabling phone compass may require pressing the in-card permission button once.
 - When `show_sun` is enabled, the card renders a separate sun indicator based on azimuth.
 - If `sun.sun` provides `elevation` and `rising`, the card adds stronger sunrise and sunset animations.
 - When `show_moon` is enabled, the card uses `moon_phase_entity` for the phase and prefers `moon_position_entity` for azimuth/elevation.

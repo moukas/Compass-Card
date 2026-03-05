@@ -134,6 +134,15 @@ const DAY_MS = 1000 * 60 * 60 * 24;
 const J1970 = 2440588;
 const J2000 = 2451545;
 const OBLIQUITY = RAD * 23.4397;
+const VIRTUAL_COMPASS_ENTITY_ID = "__device_compass__";
+const COMPASS_HEADING_ATTRIBUTE_CANDIDATES = [
+  "heading",
+  "compass_heading",
+  "magnetic_heading",
+  "bearing",
+  "azimuth",
+  "direction",
+];
 
 function normalizeDirectionValue(value) {
   return String(value)
@@ -173,6 +182,18 @@ function parseDirectionDegrees(value) {
 
 function normalizeDirectionLanguage(value) {
   return value === "cs" ? "cs" : "en";
+}
+
+function normalizeCompassMode(value) {
+  return value === "follow_compass" ? "follow_compass" : "north_locked";
+}
+
+function normalizeDegrees(value) {
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+
+  return ((value % 360) + 360) % 360;
 }
 
 function toJulian(date) {
@@ -361,6 +382,117 @@ function getEntityNumericValue(hass, entityId, attribute) {
   return parseDirectionDegrees(sourceValue);
 }
 
+function getCompassHeadingFromEntityState(entityState, preferredAttribute) {
+  if (!entityState) {
+    return null;
+  }
+
+  if (preferredAttribute) {
+    const fromPreferred = parseDirectionDegrees(
+      entityState.attributes?.[preferredAttribute]
+    );
+    if (fromPreferred !== null) {
+      return fromPreferred;
+    }
+  }
+
+  const fromState = parseDirectionDegrees(entityState.state);
+  if (fromState !== null) {
+    return fromState;
+  }
+
+  for (const attributeName of COMPASS_HEADING_ATTRIBUTE_CANDIDATES) {
+    const headingValue = parseDirectionDegrees(
+      entityState.attributes?.[attributeName]
+    );
+    if (headingValue !== null) {
+      return headingValue;
+    }
+  }
+
+  return null;
+}
+
+function getCompassHeadingFromEntity(hass, entityId, preferredAttribute) {
+  const entityState = getEntityState(hass, entityId);
+  return getCompassHeadingFromEntityState(entityState, preferredAttribute);
+}
+
+function getCompassEntityScore(entityId, stateObj) {
+  if (!entityId || !stateObj) {
+    return -1;
+  }
+
+  const domain = entityId.split(".")[0];
+  if (!["sensor", "input_number", "input_text"].includes(domain)) {
+    return -1;
+  }
+
+  let score = 0;
+  if (/compass/i.test(entityId)) {
+    score += 10;
+  }
+  if (/heading/i.test(entityId)) {
+    score += 8;
+  }
+  if (/bearing|azimuth|orientation/i.test(entityId)) {
+    score += 6;
+  }
+  if (/direction/i.test(entityId)) {
+    score += 2;
+  }
+  if (/compass/i.test(stateObj?.attributes?.icon || "")) {
+    score += 5;
+  }
+
+  const headingFromState = parseDirectionDegrees(stateObj.state);
+  if (headingFromState !== null) {
+    score += 2;
+  }
+
+  for (const attributeName of COMPASS_HEADING_ATTRIBUTE_CANDIDATES) {
+    const headingFromAttribute = parseDirectionDegrees(
+      stateObj?.attributes?.[attributeName]
+    );
+    if (headingFromAttribute !== null) {
+      score += 3;
+      break;
+    }
+  }
+
+  return score > 0 ? score : -1;
+}
+
+function discoverCompassEntityId(hass, preferredEntityId = "") {
+  const states = Object.entries(hass?.states || {});
+  if (!states.length) {
+    return preferredEntityId || "";
+  }
+
+  const scored = states
+    .map(([entityId, stateObj]) => ({
+      entityId,
+      score: getCompassEntityScore(entityId, stateObj),
+      name: getEntityName(entityId, stateObj).toLowerCase(),
+    }))
+    .filter((item) => item.score >= 0)
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.name.localeCompare(right.name) ||
+        left.entityId.localeCompare(right.entityId)
+    );
+
+  if (preferredEntityId) {
+    const preferredEntry = scored.find((entry) => entry.entityId === preferredEntityId);
+    if (preferredEntry) {
+      return preferredEntry.entityId;
+    }
+  }
+
+  return scored[0]?.entityId || preferredEntityId || "";
+}
+
 function getSunPhase(elevation, rising) {
   if (!Number.isFinite(elevation)) {
     return "day";
@@ -439,6 +571,56 @@ function buildBooleanOptions(selectedValue) {
   ].join("");
 }
 
+function buildCompassModeOptions(selectedValue) {
+  const mode = normalizeCompassMode(selectedValue);
+
+  return [
+    `<option value="north_locked"${mode === "north_locked" ? " selected" : ""}>Lock north</option>`,
+    `<option value="follow_compass"${mode === "follow_compass" ? " selected" : ""}>Rotate by compass</option>`,
+  ].join("");
+}
+
+function buildCompassEntityOptions(hass, selectedValue, autoSuggestedEntityId) {
+  const selected = selectedValue || "";
+  const entries = Object.entries(hass?.states || {})
+    .filter(([entityId, stateObj]) => {
+      if (entityId === selected) {
+        return true;
+      }
+      return getCompassEntityScore(entityId, stateObj) >= 0;
+    })
+    .sort((left, right) => {
+      const leftName = getEntityName(left[0], left[1]).toLowerCase();
+      const rightName = getEntityName(right[0], right[1]).toLowerCase();
+      return leftName.localeCompare(rightName) || left[0].localeCompare(right[0]);
+    });
+
+  const autoLabel = autoSuggestedEntityId
+    ? `Auto (${autoSuggestedEntityId} or phone compass)`
+    : "Auto (phone compass)";
+  const options = [
+    `<option value=""${selected === "" ? " selected" : ""}>${escapeHtml(autoLabel)}</option>`,
+    `<option value="${VIRTUAL_COMPASS_ENTITY_ID}"${selected === VIRTUAL_COMPASS_ENTITY_ID ? " selected" : ""}>Phone compass (virtual entity)</option>`,
+    ...entries.map(([entityId, stateObj]) => {
+      const isSelected = entityId === selected ? " selected" : "";
+      const label = `${getEntityName(entityId, stateObj)} (${entityId})`;
+      return `<option value="${escapeHtml(entityId)}"${isSelected}>${escapeHtml(label)}</option>`;
+    }),
+  ];
+
+  if (
+    selected &&
+    selected !== VIRTUAL_COMPASS_ENTITY_ID &&
+    !entries.some(([entityId]) => entityId === selected)
+  ) {
+    options.push(
+      `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)} (missing)</option>`
+    );
+  }
+
+  return options.join("");
+}
+
 function buildMoonPhaseMarkup(phase, clipId) {
   const baseClip = `url(#${clipId})`;
 
@@ -487,6 +669,9 @@ class CompassCardEditor extends HTMLElement {
       type: "custom:compass-card",
       title: "",
       direction_language: "en",
+      compass_mode: "north_locked",
+      compass_entity: "",
+      compass_attribute: "",
       show_sun: false,
       show_moon: false,
       sun_entity: "sun.sun",
@@ -556,6 +741,23 @@ class CompassCardEditor extends HTMLElement {
         break;
       case "direction_language":
         config.direction_language = normalizeDirectionLanguage(target.value);
+        break;
+      case "compass_mode":
+        config.compass_mode = normalizeCompassMode(target.value);
+        break;
+      case "compass_entity":
+        if (target.value.trim()) {
+          config.compass_entity = target.value;
+        } else {
+          delete config.compass_entity;
+        }
+        break;
+      case "compass_attribute":
+        if (target.value.trim()) {
+          config.compass_attribute = target.value.trim();
+        } else {
+          delete config.compass_attribute;
+        }
         break;
       case "show_sun":
         config.show_sun = target.value === "true";
@@ -671,6 +873,16 @@ class CompassCardEditor extends HTMLElement {
     );
     const directionLanguageOptions = buildDirectionLanguageOptions(
       config.direction_language
+    );
+    const autoCompassEntity = discoverCompassEntityId(
+      hass,
+      config.compass_entity || ""
+    );
+    const compassModeOptions = buildCompassModeOptions(config.compass_mode);
+    const compassEntityOptions = buildCompassEntityOptions(
+      hass,
+      config.compass_entity || "",
+      autoCompassEntity
     );
     const showSunOptions = buildBooleanOptions(config.show_sun === true);
     const showMoonOptions = buildBooleanOptions(config.show_moon === true);
@@ -807,6 +1019,22 @@ class CompassCardEditor extends HTMLElement {
               <input data-field="speed_unit" type="text" value="${escapeHtml(config.speed_unit || "")}" placeholder="km/h">
             </label>
             <label>
+              Compass orientation
+              <select data-field="compass_mode">
+                ${compassModeOptions}
+              </select>
+            </label>
+            <label>
+              Compass entity
+              <select data-field="compass_entity">
+                ${compassEntityOptions}
+              </select>
+            </label>
+            <label>
+              Compass attribute
+              <input data-field="compass_attribute" type="text" value="${escapeHtml(config.compass_attribute || "")}" placeholder="heading">
+            </label>
+            <label>
               Show sun position
               <select data-field="show_sun">
                 ${showSunOptions}
@@ -863,6 +1091,7 @@ class CompassCardEditor extends HTMLElement {
               <input data-field="observer_longitude" type="text" value="${escapeHtml(config.observer_longitude || "")}" placeholder="16.6068">
             </label>
           </div>
+          <p class="hint">In rotate mode the card tries the selected compass entity first and falls back to the built-in phone compass.</p>
         </div>
 
         <div class="section">
@@ -941,7 +1170,13 @@ class CompassCard extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this._config = null;
+    this._hass = null;
     this._instanceId = Math.random().toString(36).slice(2, 10);
+    this._deviceCompassHeading = null;
+    this._orientationListening = false;
+    this._orientationPermissionState = "unknown";
+    this._boundDeviceOrientation = this._onDeviceOrientation.bind(this);
+    this._boundEnableCompass = this._onEnableCompassClick.bind(this);
   }
 
   setConfig(config) {
@@ -954,8 +1189,12 @@ class CompassCard extends HTMLElement {
     }
 
     this._config = {
+      ...config,
       title: config.title || "Wind Compass",
       direction_language: normalizeDirectionLanguage(config.direction_language),
+      compass_mode: normalizeCompassMode(config.compass_mode),
+      compass_entity: config.compass_entity || "",
+      compass_attribute: config.compass_attribute || "",
       show_sun: config.show_sun === true,
       show_moon: config.show_moon === true,
       sun_entity: config.sun_entity || "sun.sun",
@@ -974,8 +1213,95 @@ class CompassCard extends HTMLElement {
         ? config.degree_decimals
         : 0,
       show_degrees: config.show_degrees !== false,
-      ...config,
     };
+  }
+
+  connectedCallback() {
+    this._startDeviceOrientationListener();
+  }
+
+  disconnectedCallback() {
+    this._stopDeviceOrientationListener();
+  }
+
+  _startDeviceOrientationListener() {
+    if (this._orientationListening || typeof window === "undefined") {
+      return;
+    }
+
+    window.addEventListener("deviceorientationabsolute", this._boundDeviceOrientation, true);
+    window.addEventListener("deviceorientation", this._boundDeviceOrientation, true);
+    this._orientationListening = true;
+  }
+
+  _stopDeviceOrientationListener() {
+    if (!this._orientationListening || typeof window === "undefined") {
+      return;
+    }
+
+    window.removeEventListener("deviceorientationabsolute", this._boundDeviceOrientation, true);
+    window.removeEventListener("deviceorientation", this._boundDeviceOrientation, true);
+    this._orientationListening = false;
+  }
+
+  _extractHeadingFromOrientationEvent(event) {
+    if (!event) {
+      return null;
+    }
+
+    const webkitHeading = parseNumericValue(event.webkitCompassHeading);
+    if (Number.isFinite(webkitHeading)) {
+      return normalizeDegrees(webkitHeading);
+    }
+
+    const alpha = parseNumericValue(event.alpha);
+    if (!Number.isFinite(alpha)) {
+      return null;
+    }
+
+    return normalizeDegrees(360 - alpha);
+  }
+
+  _onDeviceOrientation(event) {
+    const heading = this._extractHeadingFromOrientationEvent(event);
+    if (heading === null) {
+      return;
+    }
+
+    if (
+      this._deviceCompassHeading !== null &&
+      Math.abs(this._deviceCompassHeading - heading) < 0.4
+    ) {
+      return;
+    }
+
+    this._deviceCompassHeading = heading;
+    if (normalizeCompassMode(this._config?.compass_mode) === "follow_compass") {
+      this.render();
+    }
+  }
+
+  _canRequestOrientationPermission() {
+    return (
+      typeof window !== "undefined" &&
+      typeof window.DeviceOrientationEvent !== "undefined" &&
+      typeof window.DeviceOrientationEvent.requestPermission === "function"
+    );
+  }
+
+  async _onEnableCompassClick() {
+    if (!this._canRequestOrientationPermission()) {
+      return;
+    }
+
+    try {
+      const permission = await window.DeviceOrientationEvent.requestPermission();
+      this._orientationPermissionState = permission;
+    } catch (error) {
+      this._orientationPermissionState = "denied";
+    }
+
+    this.render();
   }
 
   set hass(hass) {
@@ -993,6 +1319,7 @@ class CompassCard extends HTMLElement {
       title: "Wind Compass",
       direction_entity: "sensor.wind_direction",
       speed_entity: "sensor.wind_speed",
+      compass_mode: "north_locked",
       show_sun: true,
       sun_entity: "sun.sun",
       sun_attribute: "azimuth",
@@ -1010,6 +1337,45 @@ class CompassCard extends HTMLElement {
     const directionState = getEntityState(this._hass, this._config.direction_entity);
     const speedState = getEntityState(this._hass, this._config.speed_entity);
     const directionLanguage = normalizeDirectionLanguage(this._config.direction_language);
+    const compassMode = normalizeCompassMode(this._config.compass_mode);
+    const configuredCompassEntityId = this._config.compass_entity || "";
+    const useVirtualCompassOnly =
+      configuredCompassEntityId === VIRTUAL_COMPASS_ENTITY_ID;
+    const autoCompassEntityId =
+      compassMode === "follow_compass"
+        ? discoverCompassEntityId(this._hass, configuredCompassEntityId)
+        : "";
+    const compassEntityId = useVirtualCompassOnly
+      ? ""
+      : configuredCompassEntityId || autoCompassEntityId;
+    const compassHeadingFromEntity =
+      compassMode === "follow_compass" && compassEntityId
+        ? getCompassHeadingFromEntity(
+            this._hass,
+            compassEntityId,
+            this._config.compass_attribute
+          )
+        : null;
+    const compassHeadingFromPhone =
+      compassMode === "follow_compass" ? this._deviceCompassHeading : null;
+    const compassHeading =
+      compassMode === "follow_compass"
+        ? useVirtualCompassOnly
+          ? compassHeadingFromPhone
+          : compassHeadingFromEntity ?? compassHeadingFromPhone
+        : null;
+    const sceneRotation = compassHeading === null ? 0 : -compassHeading;
+    const compassStatus =
+      compassMode === "follow_compass"
+        ? compassHeading !== null
+          ? `Heading ${compassHeading.toFixed(0)}°`
+          : "Compass unavailable"
+        : "";
+    const showCompassPermissionButton =
+      compassMode === "follow_compass" &&
+      compassHeading === null &&
+      this._canRequestOrientationPermission() &&
+      this._orientationPermissionState !== "granted";
     const sunState = this._config.show_sun
       ? getEntityState(this._hass, this._config.sun_entity)
       : null;
@@ -1093,11 +1459,19 @@ class CompassCard extends HTMLElement {
       speedState.state === "unknown";
 
     const rotation = directionDegrees ?? 0;
-    const subtitle = unavailable
-      ? "Entity unavailable"
-        : this._config.show_degrees
-          ? degreesLabel
-          : "";
+    let subtitle = "";
+    if (unavailable) {
+      subtitle = "Entity unavailable";
+    } else {
+      const subtitleParts = [];
+      if (this._config.show_degrees) {
+        subtitleParts.push(degreesLabel);
+      }
+      if (compassStatus) {
+        subtitleParts.push(compassStatus);
+      }
+      subtitle = subtitleParts.join(" | ");
+    }
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -1465,6 +1839,21 @@ class CompassCard extends HTMLElement {
         .moon-phase:empty {
           display: none;
         }
+
+        .compass-permission {
+          margin: 14px auto 0;
+          display: block;
+          padding: 8px 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          background: var(--compass-chip-bg);
+          color: var(--compass-ink);
+          font: inherit;
+          font-size: 0.78rem;
+          font-weight: 600;
+          letter-spacing: 0.03em;
+          cursor: pointer;
+        }
       </style>
 
       <ha-card>
@@ -1474,56 +1863,58 @@ class CompassCard extends HTMLElement {
 
         <div class="compass">
           <svg viewBox="0 0 280 280" aria-hidden="true">
-            <circle class="ring" cx="140" cy="140" r="128"></circle>
-            <circle class="ring ring-strong" cx="140" cy="140" r="108"></circle>
-            <circle class="ring" cx="140" cy="140" r="88"></circle>
-            ${buildTicks()}
-            ${buildLabels(directionLanguage)}
-            ${
-              this._config.show_sun
-                ? `
-                  <g class="sun-orbit sun-orbit--${sunPhase}" transform="rotate(${sunDegrees ?? 0} 140 140)">
-                    <g class="sun-marker sun-marker--${sunPhase}">
-                      <circle class="sun-halo" cx="140" cy="44" r="21"></circle>
-                      <circle class="sun-glow" cx="140" cy="44" r="16"></circle>
-                      <line class="sun-ray" x1="140" y1="24" x2="140" y2="14"></line>
-                      <line class="sun-ray" x1="140" y1="74" x2="140" y2="84"></line>
-                      <line class="sun-ray" x1="120" y1="44" x2="110" y2="44"></line>
-                      <line class="sun-ray" x1="160" y1="44" x2="170" y2="44"></line>
-                      <line class="sun-ray" x1="126" y1="30" x2="119" y2="23"></line>
-                      <line class="sun-ray" x1="154" y1="58" x2="161" y2="65"></line>
-                      <line class="sun-ray" x1="126" y1="58" x2="119" y2="65"></line>
-                      <line class="sun-ray" x1="154" y1="30" x2="161" y2="23"></line>
-                      <circle class="sun-core" cx="140" cy="44" r="10"></circle>
+            <g transform="rotate(${sceneRotation} 140 140)">
+              <circle class="ring" cx="140" cy="140" r="128"></circle>
+              <circle class="ring ring-strong" cx="140" cy="140" r="108"></circle>
+              <circle class="ring" cx="140" cy="140" r="88"></circle>
+              ${buildTicks()}
+              ${buildLabels(directionLanguage)}
+              ${
+                this._config.show_sun
+                  ? `
+                    <g class="sun-orbit sun-orbit--${sunPhase}" transform="rotate(${sunDegrees ?? 0} 140 140)">
+                      <g class="sun-marker sun-marker--${sunPhase}">
+                        <circle class="sun-halo" cx="140" cy="44" r="21"></circle>
+                        <circle class="sun-glow" cx="140" cy="44" r="16"></circle>
+                        <line class="sun-ray" x1="140" y1="24" x2="140" y2="14"></line>
+                        <line class="sun-ray" x1="140" y1="74" x2="140" y2="84"></line>
+                        <line class="sun-ray" x1="120" y1="44" x2="110" y2="44"></line>
+                        <line class="sun-ray" x1="160" y1="44" x2="170" y2="44"></line>
+                        <line class="sun-ray" x1="126" y1="30" x2="119" y2="23"></line>
+                        <line class="sun-ray" x1="154" y1="58" x2="161" y2="65"></line>
+                        <line class="sun-ray" x1="126" y1="58" x2="119" y2="65"></line>
+                        <line class="sun-ray" x1="154" y1="30" x2="161" y2="23"></line>
+                        <circle class="sun-core" cx="140" cy="44" r="10"></circle>
+                      </g>
                     </g>
-                  </g>
-                `
-                : ""
-            }
-            ${
-              moonVisible
-                ? `
-                  <defs>
-                    <clipPath id="${moonClipId}">
-                      <circle cx="140" cy="50" r="9.5"></circle>
-                    </clipPath>
-                  </defs>
-                  <g class="moon-orbit" transform="rotate(${moonDegrees ?? 0} 140 140)">
-                    <g class="moon-marker moon-marker--visible">
-                      <circle class="moon-glow" cx="140" cy="50" r="15"></circle>
-                      <circle class="moon-disc" cx="140" cy="50" r="9.5"></circle>
-                      ${buildMoonPhaseMarkup(moonPhase, moonClipId)}
-                      <circle class="moon-crater" cx="137" cy="47" r="1.4"></circle>
-                      <circle class="moon-crater" cx="143.5" cy="52.2" r="1.1"></circle>
+                  `
+                  : ""
+              }
+              ${
+                moonVisible
+                  ? `
+                    <defs>
+                      <clipPath id="${moonClipId}">
+                        <circle cx="140" cy="50" r="9.5"></circle>
+                      </clipPath>
+                    </defs>
+                    <g class="moon-orbit" transform="rotate(${moonDegrees ?? 0} 140 140)">
+                      <g class="moon-marker moon-marker--visible">
+                        <circle class="moon-glow" cx="140" cy="50" r="15"></circle>
+                        <circle class="moon-disc" cx="140" cy="50" r="9.5"></circle>
+                        ${buildMoonPhaseMarkup(moonPhase, moonClipId)}
+                        <circle class="moon-crater" cx="137" cy="47" r="1.4"></circle>
+                        <circle class="moon-crater" cx="143.5" cy="52.2" r="1.1"></circle>
+                      </g>
                     </g>
-                  </g>
-                `
-                : ""
-            }
-            <g transform="rotate(${rotation} 140 140)" style="opacity: ${directionDegrees === null ? "0.24" : "1"}">
-              <circle class="arrow-glow" cx="140" cy="140" r="10"></circle>
-              <line class="arrow-line" x1="140" y1="140" x2="140" y2="72"></line>
-              <path class="arrow-head" d="M140 42 L126 82 L140 72 L154 82 Z"></path>
+                  `
+                  : ""
+              }
+              <g transform="rotate(${rotation} 140 140)" style="opacity: ${directionDegrees === null ? "0.24" : "1"}">
+                <circle class="arrow-glow" cx="140" cy="140" r="10"></circle>
+                <line class="arrow-line" x1="140" y1="140" x2="140" y2="72"></line>
+                <path class="arrow-head" d="M140 42 L126 82 L140 72 L154 82 Z"></path>
+              </g>
             </g>
           </svg>
 
@@ -1536,8 +1927,20 @@ class CompassCard extends HTMLElement {
             </div>
           </div>
         </div>
+        ${
+          showCompassPermissionButton
+            ? '<button class="compass-permission" type="button" data-action="enable-compass">Enable phone compass</button>'
+            : ""
+        }
       </ha-card>
     `;
+
+    const enableCompassButton = this.shadowRoot.querySelector(
+      '[data-action="enable-compass"]'
+    );
+    if (enableCompassButton) {
+      enableCompassButton.addEventListener("click", this._boundEnableCompass);
+    }
   }
 }
 

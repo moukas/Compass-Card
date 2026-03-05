@@ -5,7 +5,7 @@ Tento soubor drzi metadata, ktera se nastavuji primo na GitHub repository pro le
 ## GitHub Repository Description
 
 ```text
-A Home Assistant Lovelace compass card for wind direction, wind speed, and optional sun position.
+A Home Assistant Lovelace compass card for wind direction, wind speed, and optional sun/moon position with compass-aware rotation.
 ```
 
 ## Suggested Topics
@@ -40,6 +40,7 @@ README.md
 v0.1.0
 v0.1.1
 v0.2.0
+v0.3.0
 ```
 
 ## Notes
